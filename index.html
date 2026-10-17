@@ -77,20 +77,11 @@ li.on .play { background: var(--accent); color: var(--accent-text); }
   font-size: 15px; opacity: 0; transition: opacity .2s; pointer-events: none;
 }
 #toast.show { opacity: 1; }
-#usage { color: var(--muted); font-size: 13px; text-align: center; margin-top: 16px; }
-#update {
-  display: flex; align-items: center; gap: 12px; margin: 0 0 12px; padding: 8px 8px 8px 14px;
-  background: var(--card); border: 1px solid var(--accent); border-radius: 14px;
-}
-#update[hidden] { display: none; }
-#update span { flex: 1; }
-#update button { background: var(--accent); color: var(--accent-text); padding: 11px 16px; border-radius: 999px; font-weight: 600; }
-svg { width: 18px; height: 18px; fill: currentColor; }
+#usage { color: var(--muted); font-size: 13px; text-align: center; margin-top: 16px; }svg { width: 18px; height: 18px; fill: currentColor; }
 </style>
 </head>
 <body>
 <header><h1>Верстак</h1></header>
-<p id="update" hidden><span>Есть новая версия</span><button id="reload">Обновить</button></p>
 <section id="audioteka">
   <div class="head">
     <h2>Аудиотека</h2>
@@ -120,7 +111,7 @@ svg { width: 18px; height: 18px; fill: currentColor; }
 <audio id="audio" preload="auto"></audio>
 <script>
 // release.sh writes the commit here, as in sw.js
-const VERSION = "0ee3a4e";
+const VERSION = "79f2da9";
 const PLAY = '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';
 const PAUSE = '<svg viewBox="0 0 24 24"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>';
 // WhatsApp hands over .opus with an empty type now and then; the type decides whether WebKit tries
@@ -374,23 +365,31 @@ $("seek").addEventListener("change", () => {
 });
 $("toggle").addEventListener("click", () => audio.paused ? audio.play() : audio.pause());
 
-// A new release installs in the background and waits; «Обновить» switches to it and reloads.
-// Without the network there is nothing to offer and the cached release keeps working.
+// A new release takes over on its own (sw.js), but this page still runs the old code. It reloads into the new one
+// only when that cuts nothing off: at once when no track is open (a fresh start), or on coming back after
+// IDLE in the background until the first tap — never while a track plays or a rename is open.
+// Without the network nothing changes.
+const IDLE = 30 * 60 * 1000;
 if ("serviceWorker" in navigator) {
-  let updating = false;
+  let had = !!navigator.serviceWorker.controller, stale = false, left = 0, rested = false;
+  const reloadIfIdle = () => {
+    if (stale && audio.paused && !editing && (current === null || rested)) location.reload();
+  };
+  addEventListener("pointerdown", () => { rested = false; }, true);
   navigator.serviceWorker.register("sw.js").then(reg => {
-    const offer = () => { $("update").hidden = !(reg.waiting && navigator.serviceWorker.controller); };
-    offer();
-    reg.addEventListener("updatefound", () => reg.installing?.addEventListener("statechange", offer));
     // a home-screen app comes back from the background without loading the page, so look again then
-    document.addEventListener("visibilitychange", () => { if (!document.hidden) reg.update().catch(() => {}); });
-    $("reload").addEventListener("click", () => {
-      if (!reg.waiting) return location.reload();
-      updating = true;
-      reg.waiting.postMessage("update");
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) { left = Date.now(); return; }
+      rested = left > 0 && Date.now() - left > IDLE;
+      reloadIfIdle();
+      reg.update().catch(() => {});
     });
   });
-  navigator.serviceWorker.addEventListener("controllerchange", () => { if (updating) location.reload(); });
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    // the first install takes control too; only a change from one release to another makes this page stale
+    if (had) { stale = true; reloadIfIdle(); }
+    had = true;
+  });
 }
 loopShow();
 load();
