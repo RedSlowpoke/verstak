@@ -89,7 +89,7 @@ li.on .play { background: var(--accent); color: var(--accent-text); }
       <input type="file" id="pick" accept="audio/*,.opus,.ogg,.oga,.m4a,.mp3,.wav,.aac" multiple hidden>
     </label>
   </div>
-  <p id="empty" hidden>Пока пусто. В WhatsApp: аудио → «Поделиться» → «Сохранить в Файлы», потом здесь «+ Добавить».</p>
+  <p id="empty" hidden>Пока пусто. В WhatsApp: удерживайте аудио → «Переслать» → значок «Поделиться» справа внизу → «Сохранить в Файлы». Потом здесь «+ Добавить».</p>
   <ul id="list"></ul>
   <p id="usage"></p>
 </section>
@@ -111,7 +111,7 @@ li.on .play { background: var(--accent); color: var(--accent-text); }
 <audio id="audio" preload="auto"></audio>
 <script>
 // release.sh writes the commit here, as in sw.js
-const VERSION = "79f2da9";
+const VERSION = "4434b71";
 const PLAY = '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';
 const PAUSE = '<svg viewBox="0 0 24 24"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>';
 // WhatsApp hands over .opus with an empty type now and then; the type decides whether WebKit tries
