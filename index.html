@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Верстак">
+<meta name="theme-color" content="#f6f3ee" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#17171b" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" href="icons/icon-192.png">
+<title>Верстак</title>
+<style>
+:root {
+  --bg: #f6f3ee; --card: #fffdf9; --line: #e6e0d6; --text: #24211d; --muted: #8a8278;
+  --accent: #c2603d; --accent-text: #fff; --danger: #b3261e;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #17171b; --card: #222228; --line: #303038; --text: #ecebe8; --muted: #8f8d97;
+          --accent: #e58a62; --accent-text: #1a1110; --danger: #ff8a80; }
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--text);
+  font: 17px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  padding: env(safe-area-inset-top) 16px calc(130px + env(safe-area-inset-bottom));
+  max-width: 640px; margin: 0 auto;
+}
+header { padding: 14px 0 0; }
+h1 { font-size: 15px; margin: 0; color: var(--muted); letter-spacing: 0.02em; }
+.head { display: flex; align-items: center; justify-content: space-between; padding: 2px 0 12px; }
+h2 { font-size: 28px; margin: 0; letter-spacing: -0.02em; }
+button, .add { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+.add { background: var(--accent); color: var(--accent-text); padding: 11px 18px; border-radius: 999px; font-weight: 600; }
+#empty { color: var(--muted); text-align: center; margin-top: 18vh; padding: 0 24px; }
+ul { list-style: none; margin: 0; padding: 0; }
+li {
+  display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 8px 4px 8px 12px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 14px; margin-bottom: 8px;
+}
+li.on { border-color: var(--accent); }
+.play {
+  flex: none; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--line); color: var(--text);
+}
+li.on .play { background: var(--accent); color: var(--accent-text); }
+.body { flex: 1; min-width: 0; }
+.name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.meta { color: var(--muted); font-size: 13px; }
+.name input {
+  font: inherit; width: 100%; padding: 4px 6px; border: 1px solid var(--accent); border-radius: 8px;
+  background: var(--bg); color: var(--text);
+}
+.tool { flex: none; width: 44px; height: 44px; color: var(--muted); border-radius: 10px; font-size: 18px; }
+.tool.sure { width: auto; padding: 0 10px; color: var(--danger); font-size: 14px; font-weight: 600; }
+#player {
+  position: fixed; left: 0; right: 0; bottom: 0; background: var(--card); border-top: 1px solid var(--line);
+  padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+}
+#player .row, #player .seek { max-width: 608px; margin: 0 auto; }
+#player .row { display: flex; align-items: center; gap: 12px; }
+#player .play { background: var(--accent); color: var(--accent-text); }
+#player .seek { position: relative; padding-top: 4px; }
+#seek { display: block; width: 100%; height: 32px; margin: 0; accent-color: var(--accent); }
+/* the A–B stretch under the slider; 14px is half the thumb, where the track starts and ends */
+#band { position: absolute; bottom: 1px; height: 3px; border-radius: 2px; background: var(--accent); }
+#time { font-variant-numeric: tabular-nums; }
+.tool.loop { width: auto; min-width: 56px; padding: 0 10px; font-size: 15px; font-weight: 600; color: var(--text); }
+.tool.loop.a { color: var(--accent); box-shadow: inset 0 0 0 1.5px var(--accent); }
+.tool.loop.ab { background: var(--accent); color: var(--accent-text); }
+#toast {
+  position: fixed; left: 16px; right: 16px; bottom: calc(130px + env(safe-area-inset-bottom)); margin: 0 auto;
+  max-width: 480px; background: var(--text); color: var(--bg); padding: 10px 14px; border-radius: 12px;
+  font-size: 15px; opacity: 0; transition: opacity .2s; pointer-events: none;
+}
+#toast.show { opacity: 1; }
+#usage { color: var(--muted); font-size: 13px; text-align: center; margin-top: 16px; }
+#update {
+  display: flex; align-items: center; gap: 12px; margin: 0 0 12px; padding: 8px 8px 8px 14px;
+  background: var(--card); border: 1px solid var(--accent); border-radius: 14px;
+}
+#update[hidden] { display: none; }
+#update span { flex: 1; }
+#update button { background: var(--accent); color: var(--accent-text); padding: 11px 16px; border-radius: 999px; font-weight: 600; }
+svg { width: 18px; height: 18px; fill: currentColor; }
+</style>
+</head>
+<body>
+<header><h1>Верстак</h1></header>
+<p id="update" hidden><span>Есть новая версия</span><button id="reload">Обновить</button></p>
+<section id="audioteka">
+  <div class="head">
+    <h2>Аудиотека</h2>
+    <label class="add">+ Добавить
+      <input type="file" id="pick" accept="audio/*,.opus,.ogg,.oga,.m4a,.mp3,.wav,.aac" multiple hidden>
+    </label>
+  </div>
+  <p id="empty" hidden>Пока пусто. В WhatsApp: аудио → «Поделиться» → «Сохранить в Файлы», потом здесь «+ Добавить».</p>
+  <ul id="list"></ul>
+  <p id="usage"></p>
+</section>
+<footer id="player" hidden>
+  <div class="row">
+    <button class="play" id="toggle" aria-label="Пауза"></button>
+    <div class="body">
+      <div class="name" id="now"></div>
+      <div class="meta" id="time"></div>
+    </div>
+    <button class="tool loop" id="loop"></button>
+  </div>
+  <div class="seek">
+    <input type="range" id="seek" min="0" max="1000" value="0">
+    <div id="band" hidden></div>
+  </div>
+</footer>
+<div id="toast" role="status"></div>
+<audio id="audio" preload="auto"></audio>
+<script>
+// release.sh writes the commit here, as in sw.js
+const VERSION = "0ee3a4e";
+const PLAY = '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';
+const PAUSE = '<svg viewBox="0 0 24 24"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>';
+// WhatsApp hands over .opus with an empty type now and then; the type decides whether WebKit tries
+const TYPES = {opus: "audio/ogg", ogg: "audio/ogg", oga: "audio/ogg", m4a: "audio/mp4", mp3: "audio/mpeg",
+               wav: "audio/wav", aac: "audio/aac"};
+const $ = id => document.getElementById(id);
+const audio = $("audio");
+let tracks = [], current = null, url = null, sure = null, sureTimer, editing = null;
+
+// IndexedDB: one store, a track is {id, name, type, size, added, data: ArrayBuffer}
+// (an ArrayBuffer, not the File: older WebKit lost Blobs kept in IndexedDB)
+const db = new Promise((ok, fail) => {
+  const r = indexedDB.open("verstak", 1);
+  r.onupgradeneeded = () => r.result.createObjectStore("tracks", {keyPath: "id"});
+  r.onsuccess = () => ok(r.result);
+  r.onerror = () => fail(r.error);
+});
+async function store(mode, fn) {
+  const t = (await db).transaction("tracks", mode);
+  const req = fn(t.objectStore("tracks"));
+  return new Promise((ok, fail) => {
+    t.oncomplete = () => ok(req && req.result);
+    t.onerror = () => fail(t.error);
+  });
+}
+const all = () => store("readonly", s => s.getAll());
+const put = tr => store("readwrite", s => s.put(tr));
+const del = id => store("readwrite", s => s.delete(id));
+
+function toast(text) {
+  const t = $("toast");
+  t.textContent = text;
+  t.classList.add("show");
+  clearTimeout(toast.h);
+  toast.h = setTimeout(() => t.classList.remove("show"), 3500);
+}
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const ext = n => (n.match(/\.([a-z0-9]+)$/i) || [])[1]?.toLowerCase() || "";
+const mb = b => (b / 1048576).toFixed(b < 1048576 ? 2 : 1) + " МБ";
+const clock = s => isFinite(s) ? Math.floor(s / 60) + ":" + String(Math.floor(s % 60)).padStart(2, "0") : "–:––";
+const day = t => new Date(t).toLocaleDateString("ru-RU", {day: "numeric", month: "short"});
+
+function render() {
+  // a rebuild would drop the rename box without a blur (WebKit), losing the edit; finish() renders after it
+  if (editing) return;
+  const list = $("list");
+  list.replaceChildren();
+  $("empty").hidden = tracks.length > 0;
+  for (const tr of tracks) {
+    const li = document.createElement("li");
+    li.dataset.id = tr.id;
+    li.classList.toggle("on", current === tr.id);
+    const playing = current === tr.id && !audio.paused;
+    li.innerHTML = `<button class="play" data-act="play" aria-label="${playing ? "Пауза" : "Играть"}">${playing ? PAUSE : PLAY}</button>
+      <div class="body" data-act="play"><div class="name"></div><div class="meta">${tr.dur ? clock(tr.dur) + " · " : ""}${mb(tr.size)} · ${day(tr.added)}</div></div>
+      <button class="tool" data-act="rename" aria-label="Переименовать">✎</button>
+      <button class="tool${sure === tr.id ? " sure" : ""}" data-act="delete" aria-label="Удалить">${sure === tr.id ? "точно?" : "✕"}</button>`;
+    li.querySelector(".name").textContent = tr.name;
+    list.append(li);
+  }
+  usage();
+}
+
+async function usage() {
+  const total = tracks.reduce((n, t) => n + t.size, 0);
+  $("usage").textContent = (tracks.length ? `${tracks.length} · ${mb(total)} · ` : "") + `версия ${VERSION}`;
+}
+
+async function load() {
+  tracks = (await all()).sort((a, b) => b.added - a.added);
+  render();
+}
+
+$("pick").addEventListener("change", async e => {
+  const files = [...e.target.files];
+  e.target.value = "";
+  let bad = [];
+  for (const f of files) {
+    // the picker may report a type the browser does not know (audio/opus, application/octet-stream)
+    // although it plays the file; then the extension decides
+    const type = audio.canPlayType(f.type) ? f.type : TYPES[ext(f.name)] || f.type || "audio/mpeg";
+    if (!audio.canPlayType(type)) bad.push(f.name);
+    await put({id: uid(), name: f.name.replace(/\.[^.]+$/, ""), type, size: f.size, added: Date.now(),
+               data: await f.arrayBuffer()});
+  }
+  // keep the library through Safari's storage cleanup; a home-screen app gets it without asking
+  navigator.storage?.persist?.();
+  await load();
+  toast(bad.length ? `Добавлено, но этот браузер может не сыграть: ${bad.join(", ")}`
+                   : files.length === 1 ? "Трек добавлен" : `Добавлено треков: ${files.length}`);
+});
+
+$("list").addEventListener("click", async e => {
+  const act = e.target.closest("[data-act]")?.dataset.act;
+  const li = e.target.closest("li");
+  if (!act || !li || li.querySelector("input")) return;
+  const tr = tracks.find(t => t.id === li.dataset.id);
+  if (act === "play") play(tr);
+  else if (act === "rename") rename(li, tr);
+  else if (act === "delete") {
+    // no confirm(): a second tap within 4 s, as in dash-hub
+    if (sure !== tr.id) {
+      sure = tr.id;
+      clearTimeout(sureTimer);
+      sureTimer = setTimeout(() => { sure = null; render(); }, 4000);
+      return render();
+    }
+    sure = null;
+    clearTimeout(sureTimer);
+    if (current === tr.id) stop();
+    await del(tr.id);
+    await load();
+    toast("Удалено");
+  }
+});
+
+function rename(li, tr) {
+  const box = li.querySelector(".name");
+  const input = document.createElement("input");
+  input.value = tr.name;
+  input.enterKeyHint = "done";
+  box.replaceChildren(input);
+  editing = tr.id;
+  input.focus();
+  input.select();
+  let done = false;
+  const finish = async save => {
+    if (done) return;
+    done = true;
+    const name = input.value.trim();
+    if (save && name && name !== tr.name) {
+      tr.name = name;
+      if (current === tr.id) { $("now").textContent = name; meta(tr); }
+      await put(tr);
+    }
+    editing = null;
+    render();
+  };
+  input.addEventListener("keydown", e => {
+    if (e.key === "Enter") finish(true);
+    if (e.key === "Escape") finish(false);
+  });
+  input.addEventListener("blur", () => finish(true));
+}
+
+function meta(tr) {
+  if ("mediaSession" in navigator) navigator.mediaSession.metadata = new MediaMetadata({title: tr.name, artist: "Верстак"});
+}
+
+function play(tr) {
+  if (current === tr.id) return audio.paused ? audio.play() : audio.pause();
+  if (url) URL.revokeObjectURL(url);
+  url = URL.createObjectURL(new Blob([tr.data], {type: tr.type}));
+  current = tr.id;
+  unloop();
+  audio.src = url;
+  audio.play().catch(err => { if (err.name !== "AbortError") failed(tr); });
+  $("now").textContent = tr.name;
+  $("player").hidden = false;
+  meta(tr);
+  render();
+}
+
+function stop() {
+  audio.pause();
+  audio.removeAttribute("src");
+  if (url) URL.revokeObjectURL(url);
+  url = current = null;
+  unloop();
+  $("player").hidden = true;
+}
+
+// A–B repeat for learning a part: the first tap marks A, the second marks B and jumps back to A, the third clears.
+// Every track starts from the beginning without a loop.
+let loopA = null, loopB = null;
+function unloop() { loopA = loopB = null; loopShow(); }
+function loopShow() {
+  const b = $("loop"), band = $("band"), d = audio.duration;
+  b.className = "tool loop" + (loopB !== null ? " ab" : loopA !== null ? " a" : "");
+  b.textContent = loopA !== null && loopB === null ? "B" : "A–B";
+  b.setAttribute("aria-label", loopB !== null ? "Убрать повтор" : loopA !== null ? "Конец повтора" : "Начало повтора");
+  band.hidden = loopA === null || !isFinite(d) || !d;
+  if (band.hidden) return;
+  // while B is not set yet, the stretch follows the playhead
+  const end = Math.max(loopB ?? audio.currentTime, loopA);
+  band.style.left = `calc(14px + (100% - 28px) * ${loopA / d})`;
+  band.style.width = `calc((100% - 28px) * ${(end - loopA) / d})`;
+}
+function loopCheck() {
+  if (loopB !== null && audio.currentTime >= loopB) audio.currentTime = loopA;
+}
+// timeupdate comes about four times a second, late enough to hear past B; a frame loop catches B on time
+// while the page is on screen, timeupdate covers the lock screen
+function loopTick() {
+  if (audio.paused || loopB === null) return;
+  loopCheck();
+  requestAnimationFrame(loopTick);
+}
+$("loop").addEventListener("click", () => {
+  const t = audio.currentTime;
+  if (loopB !== null) { unloop(); return toast("Повтор выключен"); }
+  if (loopA === null) {
+    loopA = t;
+    toast(`Начало повтора ${clock(t)}. Нажмите ещё раз в конце фрагмента`);
+  } else if (Math.abs(t - loopA) < 1) {
+    return toast("Фрагмент короче секунды. Отметьте конец позже");
+  } else {
+    [loopA, loopB] = [Math.min(loopA, t), Math.max(loopA, t)];
+    audio.currentTime = loopA;
+    toast(`Повтор ${clock(loopA)}–${clock(loopB)}`);
+    loopTick();
+  }
+  loopShow();
+});
+
+function failed(tr) {
+  toast(`Не играет: «${tr.name}» (${tr.type}). Этот формат браузер не поддерживает.`);
+  stop();
+  render();
+}
+
+audio.addEventListener("error", () => { const tr = tracks.find(t => t.id === current); if (tr) failed(tr); });
+audio.addEventListener("loadedmetadata", async () => {
+  // the length is known once WebKit has read the file; keep it for the list
+  const tr = tracks.find(t => t.id === current);
+  loopShow();
+  if (tr && isFinite(audio.duration) && tr.dur !== audio.duration) { tr.dur = audio.duration; await put(tr); render(); }
+});
+for (const ev of ["play", "pause"]) audio.addEventListener(ev, () => {
+  $("toggle").innerHTML = audio.paused ? PLAY : PAUSE;
+  $("toggle").setAttribute("aria-label", audio.paused ? "Играть" : "Пауза");
+  if (ev === "play") loopTick();
+  render();
+});
+// a B at the very end is never passed: the track ends first
+audio.addEventListener("ended", () => {
+  audio.currentTime = loopB !== null ? loopA : 0;
+  if (loopB !== null) audio.play();
+});
+audio.addEventListener("timeupdate", () => {
+  loopCheck();
+  if (!seeking) $("seek").value = audio.duration ? audio.currentTime / audio.duration * 1000 : 0;
+  $("time").textContent = clock(audio.currentTime) + " / " + clock(audio.duration);
+  if (loopA !== null && loopB === null) loopShow();
+});
+let seeking = false;
+$("seek").addEventListener("input", () => { seeking = true; });
+$("seek").addEventListener("change", () => {
+  if (audio.duration) audio.currentTime = $("seek").value / 1000 * audio.duration;
+  seeking = false;
+});
+$("toggle").addEventListener("click", () => audio.paused ? audio.play() : audio.pause());
+
+// A new release installs in the background and waits; «Обновить» switches to it and reloads.
+// Without the network there is nothing to offer and the cached release keeps working.
+if ("serviceWorker" in navigator) {
+  let updating = false;
+  navigator.serviceWorker.register("sw.js").then(reg => {
+    const offer = () => { $("update").hidden = !(reg.waiting && navigator.serviceWorker.controller); };
+    offer();
+    reg.addEventListener("updatefound", () => reg.installing?.addEventListener("statechange", offer));
+    // a home-screen app comes back from the background without loading the page, so look again then
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) reg.update().catch(() => {}); });
+    $("reload").addEventListener("click", () => {
+      if (!reg.waiting) return location.reload();
+      updating = true;
+      reg.waiting.postMessage("update");
+    });
+  });
+  navigator.serviceWorker.addEventListener("controllerchange", () => { if (updating) location.reload(); });
+}
+loopShow();
+load();
+</script>
+</body>
+</html>
