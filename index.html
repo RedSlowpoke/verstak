@@ -205,12 +205,21 @@ body.locked:has(#toast.show) .panel { padding-bottom: calc(16px + env(safe-area-
 #pplacev { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #pplacev.none { color: var(--muted); }
 .pick svg.i { width: 16px; height: 16px; color: var(--muted); transition: transform .2s; }
-#pplace[aria-expanded="true"] .pick svg.i { transform: rotate(180deg); }
-.opts button {
-  display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 44px;
+.r[aria-expanded="true"] .pick svg.i { transform: rotate(180deg); }
+.opts > * {
+  position: relative; display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 44px;
   padding: 0 12px 0 24px; text-align: left;
 }
-.opts button + button { border-top: 1px solid var(--line); }
+.opts > * + * { border-top: 1px solid var(--line); }
+/* «Пересажено», «Удобрено»: the last day and how long ago, in one line; under the row «Сегодня», «Другой день…» */
+/* the widest («30 нояб. 2025 10 мес. назад») fits at 393 pt with the gaps cut to 4 and 8 pt; should one not, how long
+   ago gives way, never the day */
+#pcare .r { gap: 8px; }
+.when { display: flex; align-items: baseline; gap: 4px; min-width: 0; white-space: nowrap; }
+.when > :first-child { flex: none; }
+.when .ago { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--muted); font-size: 15px; }
+.when.none { color: var(--muted); }
+#pcare .opts > * { color: var(--accent); }
 .step { display: flex; align-items: center; gap: 4px; }
 .step button { width: 44px; height: 44px; border-radius: 10px; background: var(--line); font-size: 22px; }
 .step button:disabled { color: var(--muted); }
@@ -227,7 +236,7 @@ body.locked:has(#toast.show) .panel { padding-bottom: calc(16px + env(safe-area-
   display: flex; align-items: center; justify-content: center; gap: 6px;
 }
 /* the native date picker opens from the field itself; it lies unseen over the text button */
-.ghost input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; font-size: 16px; -webkit-appearance: none; }
+:is(.ghost, .opts) input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; font-size: 16px; -webkit-appearance: none; }
 .hist { padding: 0 12px 8px; color: var(--muted); font-size: 15px; }
 .hist div { display: flex; justify-content: space-between; min-height: 32px; align-items: center; }
 #pdel { width: 100%; min-height: 44px; color: var(--danger); font-size: 15px; }
@@ -302,6 +311,12 @@ svg.i { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-widt
       <button type="button" class="big" id="pwater"></button>
       <label class="ghost"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg>Полил в другой день…<input type="date" id="pday" aria-label="Полил в другой день"></label>
       <div class="group" id="phist"></div>
+      <div class="group" id="pcare">
+        <button type="button" class="r" aria-expanded="false"><span class="k">Пересажено</span><span class="pick"><span class="when" id="prepotted"></span><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span></button>
+        <div class="opts" hidden><button type="button" data-care="repotted">Сегодня</button><label>Другой день…<input type="date" data-care="repotted"></label></div>
+        <button type="button" class="r" aria-expanded="false"><span class="k">Удобрено</span><span class="pick"><span class="when" id="pfed"></span><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span></button>
+        <div class="opts" hidden><button type="button" data-care="fed">Сегодня</button><label>Другой день…<input type="date" data-care="fed"></label></div>
+      </div>
       <button type="button" id="pdel"></button>
     </div>
     <button type="button" class="big" id="pcreate" hidden>Добавить</button>
@@ -310,7 +325,7 @@ svg.i { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-widt
 <audio id="audio" preload="auto"></audio>
 <script>
 // release.sh writes the commit here, as in sw.js
-const VERSION = "9c905e6";
+const VERSION = "25acd3e";
 const PLAY = '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';
 const PAUSE = '<svg viewBox="0 0 24 24"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>';
 // Lucide, inline: no loading from outside
@@ -712,8 +727,10 @@ function tab(name) {
 }
 $("tabs").addEventListener("click", e => { const b = e.target.closest("[data-tab]"); if (b) tab(b.dataset.tab); });
 
-// Цветы. A plant is {id, name, place, every, history, photo, photoType, added}: every is days between waterings,
-// history the times of watering (ms, newest first), photo an ArrayBuffer of a small JPEG, as with tracks.
+// Цветы. A plant is {id, name, place, every, history, repotted, fed, photo, photoType, added}: every is days between
+// waterings, history the times of watering (ms, newest first), repotted and fed the same for «Пересажено» and
+// «Удобрено» (no reminders: nothing else looks at them; plants kept before them have neither), photo an ArrayBuffer
+// of a small JPEG, as with tracks.
 const PLACES = ["Гостиная", "Спальня", "Балкон", "Сад"];
 const SORTS = {due: "по сроку", name: "по имени", place: "по месту"};
 const DROP = icon('<path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"/>');
@@ -742,6 +759,20 @@ const plural = (n, one, few, many) => {
   return a === 1 && b !== 11 ? one : a >= 2 && a <= 4 && (b < 12 || b > 14) ? few : many;
 };
 const days = n => n + " " + plural(n, "день", "дня", "дней");
+// «12 мар. 2025»: a day of another year says the year
+const dated = t => day(t) + (new Date(t).getFullYear() === new Date().getFullYear() ? "" : " " + new Date(t).getFullYear());
+// how long ago, by calendar days: days under two whole calendar months, then months, from 12 of them whole years
+// («18 мес.» with a day of another year does not fit the row)
+function since(t) {
+  const n = between(t, Date.now()), a = new Date(t), b = new Date();
+  const m = (b.getFullYear() - a.getFullYear()) * 12 + b.getMonth() - a.getMonth() - (b.getDate() < a.getDate());
+  if (!n) return "сегодня";
+  if (m < 2) return days(n) + " назад";
+  if (m < 12) return m + " мес. назад";
+  const y = Math.floor(m / 12);
+  return y + " " + plural(y, "год", "года", "лет") + " назад";
+}
+const CARE = {repotted: "пересажено", fed: "удобрено"};
 const esc = s => s.replace(/[&<>"]/g, c => `&#${c.charCodeAt(0)};`);
 function when(p) {
   if (!p.history.length) return "<b>ещё не поливали</b>";
@@ -877,7 +908,7 @@ $("sortmenu").addEventListener("click", e => {
 $("addplant").addEventListener("click", () => {
   // the place of the plant added last: plants come in by rooms
   const last = plants.reduce((a, p) => !a || p.added > a.added ? p : a, null);
-  openSheet({id: uid(), name: "", place: last?.place || "", every: 7, history: [],
+  openSheet({id: uid(), name: "", place: last?.place || "", every: 7, history: [], repotted: [], fed: [],
              photo: null, photoType: null, added: Date.now()}, true);
 });
 // «полить сегодня» is about the day it is shown: a new day redraws the list and the card, at midnight while the app
@@ -909,7 +940,7 @@ function openSheet(p, fresh = false) {
   sheet = {p, fresh};
   psure = false;
   $("pname").value = p.name;
-  placesOpen(false);
+  listOpen(null);
   lock(true);
   $("sheet").hidden = false;
   $("panel").scrollTop = 0;
@@ -959,6 +990,11 @@ function fillSheet() {
       const ago = between(t, Date.now());
       return `<div><span>${day(t)}</span><span>${ago ? days(ago) + " назад" : "сегодня"}</span></div>`;
     }).join("")}</div>`;
+  for (const k in CARE) {
+    const last = (p[k] || [])[0];
+    $("p" + k).innerHTML = last ? `<span>${dated(last)}</span><span class="ago">${since(last)}</span>` : "не отмечено";
+    $("p" + k).classList.toggle("none", !last);
+  }
   $("pdel").textContent = psure ? "точно?" : "Удалить растение";
   $("pdel").classList.toggle("sure", psure);
 }
@@ -1055,21 +1091,29 @@ $("pname").addEventListener("input", () => {
 });
 $("pname").addEventListener("blur", () => { if (sheet && !sheet.fresh) $("pname").value = sheet.p.name; });
 $("pname").addEventListener("keydown", e => { if (e.key === "Enter") $("pname").blur(); });
-function placesOpen(on) {
-  $("pplaces").hidden = !on;
-  $("pplace").setAttribute("aria-expanded", on);
+// One list open in the card at a time, under its row: «Место», «Пересажено» or «Удобрено» (row null: none)
+function listOpen(row) {
+  for (const r of $("panel").querySelectorAll(".r[aria-expanded]")) {
+    r.setAttribute("aria-expanded", r === row);
+    r.nextElementSibling.hidden = r !== row;
+  }
 }
-$("pplace").addEventListener("click", () => placesOpen($("pplaces").hidden));
+$("panel").addEventListener("click", e => {
+  const r = e.target.closest(".r[aria-expanded]");
+  if (r) listOpen(r.getAttribute("aria-expanded") === "true" ? null : r);
+});
 $("pplaces").addEventListener("click", e => {
   const b = e.target.closest("[data-place]");
   if (!b) return;
   sheet.p.place = b.dataset.place;
-  placesOpen(false);
+  listOpen(null);
   changed();
 });
-// a tap anywhere else closes the list
-addEventListener("pointerdown", e => {
-  if (!$("pplaces").hidden && !e.target.closest?.("#pplace, #pplaces")) placesOpen(false);
+// a tap anywhere else closes the list, on its click: closed at the touch, the list pulls what is under it up and the
+// click lands on whatever came under the finger («Удалить растение»)
+addEventListener("click", e => {
+  const open = $("panel").querySelector(".r[aria-expanded=true]");
+  if (open && !open.contains(e.target) && !open.nextElementSibling.contains(e.target)) listOpen(null);
 }, true);
 $("less").addEventListener("click", () => { sheet.p.every = Math.max(1, sheet.p.every - 1); changed(); });
 $("more").addEventListener("click", () => { sheet.p.every += 1; changed(); });
@@ -1097,25 +1141,50 @@ $("sphoto").addEventListener("click", e => {
   changed();
 });
 $("pwater").addEventListener("click", () => water(sheet.p));
-// «Полил в другой день…»: iOS puts today into the empty field as soon as its picker opens and reports a change
-// for every day tapped, so the day counts only when the picker closes. Today there means nothing was picked
-// (that is «Полил сегодня»).
-function otherDay() {
-  const v = $("pday").value;
-  $("pday").value = "";
-  if (!v || !sheet || v === iso(Date.now())) return;
-  const [y, m, d] = v.split("-").map(Number);
-  // noon, clear of midnight on either side
-  const t = new Date(y, m - 1, d, 12).getTime();
+// «Полил в другой день…», «Другой день…»: iOS puts today into the empty field as soon as its picker opens and reports
+// a change for every day tapped, so the day counts only when the picker closes. Today there means nothing was picked
+// (that is «Полил сегодня», «Сегодня»). fn gets the day picked.
+function otherDay(input, fn) {
+  const picked = () => {
+    const v = input.value;
+    input.value = "";
+    if (!v || !sheet || v === iso(Date.now())) return;
+    const [y, m, d] = v.split("-").map(Number);
+    // noon, clear of midnight on either side
+    const t = new Date(y, m - 1, d, 12).getTime();
+    if (dayOf(t) > dayOf(Date.now())) return toast("Этот день ещё не наступил");
+    fn(t);
+  };
+  input.addEventListener("focus", () => { input.value = ""; input.max = iso(Date.now()); });
+  input.addEventListener("blur", picked);
+  input.addEventListener("change", () => { if (document.activeElement !== input) picked(); });
+}
+otherDay($("pday"), t => {
   const p = sheet.p, before = p.history;
-  if (dayOf(t) > dayOf(Date.now())) return toast("Этот день ещё не наступил");
   if (before.some(h => dayOf(h) === dayOf(t))) return toast("Этот день уже в истории");
   p.history = [...before, t].sort((a, b) => b - a);
   watered(p, before);
+});
+// «Пересажено», «Удобрено»: «Сегодня» or another day writes at once, as «Полил»; the toast offers to put it back for 5 s
+async function cared(k, t) {
+  const p = sheet.p, before = p[k] || [];
+  listOpen(null);
+  if (before.some(h => dayOf(h) === dayOf(t))) return toast("Этот день уже в истории");
+  p[k] = [...before, t].sort((a, b) => b - a);
+  await savePlant(p);
+  if (sheet?.p === p) fillSheet();
+  toast([[{cut: p.name}], `${CARE[k]} ${between(t, Date.now()) ? dated(t) : "сегодня"}`], async () => {
+    if (!plants.includes(p)) return;
+    p[k] = before;
+    await savePlant(p);
+    if (sheet?.p === p) fillSheet();
+  });
 }
-$("pday").addEventListener("focus", () => { $("pday").value = ""; $("pday").max = iso(Date.now()); });
-$("pday").addEventListener("blur", otherDay);
-$("pday").addEventListener("change", () => { if (document.activeElement !== $("pday")) otherDay(); });
+$("pcare").addEventListener("click", e => {
+  const b = e.target.closest("button[data-care]");
+  if (b) cared(b.dataset.care, Date.now());
+});
+for (const input of $("pcare").querySelectorAll("input")) otherDay(input, t => cared(input.dataset.care, t));
 $("pdel").addEventListener("click", async () => {
   // no confirm(): a second tap within 4 s, as with a track
   if (!psure) {
