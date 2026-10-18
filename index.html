@@ -8,6 +8,8 @@
 <meta name="apple-mobile-web-app-title" content="Верстак">
 <meta name="theme-color" content="#f6f3ee" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#17171b" media="(prefers-color-scheme: dark)">
+<!-- both themes: the system's own controls (the slider, the date picker) follow the page's -->
+<meta name="color-scheme" content="light dark">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
 <link rel="icon" href="icons/icon-192.png">
@@ -16,26 +18,27 @@
 :root {
   --bg: #f6f3ee; --card: #fffdf9; --line: #e6e0d6; --text: #24211d; --muted: #8a8278;
   --accent: #c2603d; --accent-text: #fff; --danger: #b3261e;
+  /* the height of the player and the tabs, measured in the script; this is the tabs alone */
+  --bottom: calc(65px + env(safe-area-inset-bottom));
 }
 @media (prefers-color-scheme: dark) {
   :root { --bg: #17171b; --card: #222228; --line: #303038; --text: #ecebe8; --muted: #8f8d97;
           --accent: #e58a62; --accent-text: #1a1110; --danger: #ff8a80; }
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+[hidden] { display: none !important; }
 html, body { margin: 0; }
 body {
   background: var(--bg); color: var(--text);
   font: 17px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  padding: env(safe-area-inset-top) 16px calc(130px + env(safe-area-inset-bottom));
+  padding: env(safe-area-inset-top) 16px calc(var(--bottom) + 16px);
   max-width: 640px; margin: 0 auto;
 }
-header { padding: 14px 0 0; }
-h1 { font-size: 15px; margin: 0; color: var(--muted); letter-spacing: 0.02em; }
-.head { display: flex; align-items: center; justify-content: space-between; padding: 2px 0 12px; }
+.head { display: flex; align-items: center; justify-content: space-between; padding: 14px 0 12px; }
 h2 { font-size: 28px; margin: 0; letter-spacing: -0.02em; }
 button, .add { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
 .add { background: var(--accent); color: var(--accent-text); padding: 11px 18px; border-radius: 999px; font-weight: 600; }
-#empty { color: var(--muted); text-align: center; margin-top: 18vh; padding: 0 24px; }
+#empty, #pempty { color: var(--muted); text-align: center; margin-top: 18vh; padding: 0 24px; }
 ul { list-style: none; margin: 0; padding: 0; }
 li {
   display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 8px 4px 8px 12px;
@@ -50,39 +53,191 @@ li.on .play { background: var(--accent); color: var(--accent-text); }
 .body { flex: 1; min-width: 0; }
 .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .meta { color: var(--muted); font-size: 13px; }
+/* the rename field sits in the name's line: the text stays where it was and the row keeps its height */
+.name:has(input) { overflow: visible; }
 .name input {
-  font: inherit; width: 100%; padding: 4px 6px; border: 1px solid var(--accent); border-radius: 8px;
-  background: var(--bg); color: var(--text);
+  display: block; font: inherit; width: calc(100% + 8px); height: 23px; padding: 0 4px; margin: 0 -4px; border: 0;
+  border-radius: 6px; box-shadow: inset 0 0 0 1.5px var(--accent); outline: none; background: var(--bg); color: var(--text);
 }
-.tool { flex: none; width: 44px; height: 44px; color: var(--muted); border-radius: 10px; font-size: 18px; }
-.tool.sure { width: auto; padding: 0 10px; color: var(--danger); font-size: 14px; font-weight: 600; }
-#player {
-  position: fixed; left: 0; right: 0; bottom: 0; background: var(--card); border-top: 1px solid var(--line);
-  padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+.tool { flex: none; width: 44px; height: 44px; color: var(--muted); border-radius: 10px; font-size: 18px;
+        display: grid; place-items: center; }
+/* A track row slides left over «Переименовать» and «Удалить» (render, swipe) */
+#list li { display: block; position: relative; overflow: hidden; padding: 0; }
+.front {
+  position: relative; z-index: 1; display: flex; align-items: center; gap: 12px; min-height: 62px; padding: 8px 12px;
+  background: var(--card); transition: transform .2s ease-out; touch-action: pan-y; -webkit-user-select: none; user-select: none;
 }
+/* --acts: the buttons' width, measured as a swipe starts: «Переименовать» at 11 pt is wider than 72 pt */
+#list li.open .front { transform: translateX(calc(-1 * var(--acts, 144px))); }
+.acts { position: absolute; top: 0; right: 0; bottom: 0; display: flex; }
+.acts button {
+  flex: none; min-width: 72px; padding: 0 6px; white-space: nowrap; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  font-size: 11px; font-weight: 600; background: var(--line); color: var(--text);
+}
+.acts .del { background: var(--danger); color: var(--bg); }  /* white on the dark theme's light red is unreadable */
+/* bottom up: the home indicator, the tabs, the player while a track is open */
+#bottom { position: fixed; left: 0; right: 0; bottom: 0; z-index: 2; }
+#player { background: var(--card); border-top: 1px solid var(--line); padding: 10px 16px 2px; }
 #player .row, #player .seek { max-width: 608px; margin: 0 auto; }
 #player .row { display: flex; align-items: center; gap: 12px; }
 #player .play { background: var(--accent); color: var(--accent-text); }
-#player .seek { position: relative; padding-top: 4px; }
-#seek { display: block; width: 100%; height: 32px; margin: 0; accent-color: var(--accent); }
-/* the A–B stretch under the slider; 14px is half the thumb, where the track starts and ends */
-#band { position: absolute; bottom: 1px; height: 3px; border-radius: 2px; background: var(--accent); }
+#player .seek { position: relative; }
+/* a 44 pt target; the track is 4 pt in the middle of it */
+#seek { position: relative; z-index: 1; display: block; width: 100%; height: 44px; margin: 0; accent-color: var(--accent); }
+/* the A–B stretch 6 pt under the track, under the thumb; 14px is half the thumb, where the track starts and ends */
+#band { position: absolute; top: 30px; height: 3px; border-radius: 2px; background: var(--accent); pointer-events: none; }
 #time { font-variant-numeric: tabular-nums; }
 .tool.loop { width: auto; min-width: 56px; padding: 0 10px; font-size: 15px; font-weight: 600; color: var(--text); }
 .tool.loop.a { color: var(--accent); box-shadow: inset 0 0 0 1.5px var(--accent); }
 .tool.loop.ab { background: var(--accent); color: var(--accent-text); }
+#tabs {
+  display: flex; gap: 6px; padding: 6px 12px calc(6px + env(safe-area-inset-bottom));
+  background: var(--bg); border-top: 1px solid var(--line);
+}
+#tabs button {
+  flex: 1; height: 52px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  font-size: 11px; font-weight: 600; color: var(--muted);
+}
+#tabs button[aria-selected="true"] { color: var(--accent); }
+#tabs svg { width: 24px; height: 24px; }
 #toast {
-  position: fixed; left: 16px; right: 16px; bottom: calc(130px + env(safe-area-inset-bottom)); margin: 0 auto;
+  position: fixed; left: 16px; right: 16px; bottom: calc(var(--bottom) + 10px); margin: 0 auto; z-index: 4;
   max-width: 480px; background: var(--text); color: var(--bg); padding: 10px 14px; border-radius: 12px;
   font-size: 15px; opacity: 0; transition: opacity .2s; pointer-events: none;
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
 }
 #toast.show { opacity: 1; }
-#usage { color: var(--muted); font-size: 13px; text-align: center; margin-top: 16px; }svg { width: 18px; height: 18px; fill: currentColor; }
+#toast.act { padding: 4px 4px 4px 14px; }
+#toast.show.act { pointer-events: auto; }
+#undo { flex: none; min-height: 44px; padding: 0 10px; color: var(--bg); font-weight: 600; }
+/* a toast in two lines (toast()): neither wraps, a name in it is cut short; the same height for any name */
+#said { min-width: 0; }
+#said.two div { display: flex; overflow: hidden; white-space: nowrap; }
+#said.two b { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+#toast.act #said.two { padding: 6px 0; }
+#usage { color: var(--muted); font-size: 13px; text-align: center; margin-top: 16px; }
+svg { width: 18px; height: 18px; fill: currentColor; }
+/* Цветы */
+.chips { display: flex; gap: 8px; overflow-x: auto; margin: 0 -16px 4px; padding: 4px 16px; scrollbar-width: none; }
+.chips::-webkit-scrollbar { display: none; }
+.chip {
+  flex: none; position: relative; height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line);
+  background: var(--card); font-size: 15px; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+}
+/* a 44 pt target around the 36 pt chip */
+.chip::after { content: ""; position: absolute; inset: -4px; }
+.chip .n { color: var(--muted); font-size: 13px; }
+.chip.on { background: var(--text); color: var(--bg); border-color: var(--text); }
+.chip.on .n { color: inherit; opacity: .7; }
+.sortrow { display: flex; justify-content: space-between; align-items: center; color: var(--muted); font-size: 13px; margin-bottom: 4px; }
+.sortb { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; font-size: 15px; color: var(--text); }
+.sortb svg.i { width: 16px; height: 16px; }
+.group { background: var(--card); border: 1px solid var(--line); border-radius: 14px; margin-bottom: 12px; overflow: hidden; }
+.group .r {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 52px;
+  padding: 0 12px; text-align: left;
+}
+.group > * + :is(.r, .opts) { border-top: 1px solid var(--line); }
+.k { flex: none; color: var(--muted); font-size: 15px; }
+#plants li { padding-right: 10px; }
+#plants .meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pic {
+  flex: none; width: 44px; height: 44px; border-radius: 50%; overflow: hidden; display: grid; place-items: center;
+  background: var(--line); color: var(--muted);
+}
+.pic img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.meta b { color: var(--accent); font-weight: 600; }
+.water {
+  flex: none; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center;
+  border: 1.5px solid var(--line); color: var(--muted);
+}
+li.due .water { border-color: var(--accent); color: var(--accent); }
+li.done .water { background: var(--line); border-color: var(--line); color: var(--text); }
+/* the plant card: a sheet from the bottom over everything; the page under it stays put (body.locked) */
+body.locked { position: fixed; left: 0; right: 0; overflow: hidden; }
+/* the bars are under the sheet then: the toast goes to the bottom, over the sheet's end */
+body.locked #toast { bottom: calc(env(safe-area-inset-bottom) + 10px); }
+/* while it shows, the sheet's end can scroll up past it: --toast is its height, set in toast() */
+body.locked:has(#toast.show) .panel { padding-bottom: calc(16px + env(safe-area-inset-bottom) + var(--toast, 0px)); }
+#sheet { position: fixed; inset: 0; z-index: 3; }
+.dim { position: absolute; inset: 0; background: rgba(0, 0, 0, .35); }
+.panel {
+  position: absolute; left: 0; right: 0; bottom: 0; max-width: 640px; margin: 0 auto;
+  max-height: calc(100% - env(safe-area-inset-top) - 8px); overflow-y: auto; overscroll-behavior: contain;
+  background: var(--bg); border-radius: 16px 16px 0 0; padding: 8px 16px calc(16px + env(safe-area-inset-bottom));
+  animation: rise .25s ease-out;
+}
+@keyframes rise { from { transform: translateY(100%); } }
+/* let go after a swipe down: the sheet goes back up or away (pull) */
+#sheet.let .panel { transition: transform .25s ease-out; }
+#sheet.let .dim { transition: opacity .25s ease-out; }
+@media (prefers-reduced-motion: reduce) { .panel { animation: none; } #sheet.let :is(.panel, .dim) { transition: none; } }
+.grab { width: 36px; height: 5px; border-radius: 3px; background: var(--line); margin: 0 auto 4px; }
+.shead { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-right: -12px; }
+.shead h3 { margin: 0; font-size: 22px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shead .tool { color: var(--text); }
+.photo { position: relative; margin-top: 8px; }
+/* the photo takes no touches: held, iOS lifts it for drag-and-drop and a slow swipe down there is lost */
+.photo img { display: block; width: 100%; height: 200px; object-fit: cover; border-radius: 14px; pointer-events: none; }
+.photo label {
+  position: absolute; right: 8px; bottom: 8px; min-height: 44px; padding: 0 14px; border-radius: 999px;
+  background: var(--bg); color: var(--text); display: inline-flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 600;
+}
+.photo label svg.i { width: 18px; height: 18px; }
+.nophoto {
+  margin-top: 8px; height: 120px; border-radius: 14px; background: var(--card); border: 1px solid var(--line);
+  color: var(--accent); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; font-size: 15px;
+}
+.nophoto svg.i { width: 28px; height: 28px; }
+#unphoto { display: block; margin-left: auto; min-height: 44px; padding: 0 4px; color: var(--muted); font-size: 15px; }
+.nophoto + .group { margin-top: 12px; }
+.panel .group { margin-top: 8px; }
+/* 17 px: under 16 px iOS zooms the page into the field */
+#pname {
+  flex: 1; min-width: 0; font: inherit; font-size: 17px; text-align: right; border: 0; background: none;
+  color: var(--text); padding: 12px 0; outline: none;
+}
+#pname::placeholder { color: var(--muted); }
+/* a form of its own around the field only: see the submit listener */
+.r form { flex: 1; min-width: 0; display: flex; margin: 0; }
+/* «Место»: a list of its own under the row, as the sort menu, not the system picker */
+.pick { display: flex; align-items: center; gap: 4px; min-width: 0; font-size: 17px; }
+#pplacev { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#pplacev.none { color: var(--muted); }
+.pick svg.i { width: 16px; height: 16px; color: var(--muted); transition: transform .2s; }
+#pplace[aria-expanded="true"] .pick svg.i { transform: rotate(180deg); }
+.opts button {
+  display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 44px;
+  padding: 0 12px 0 24px; text-align: left;
+}
+.opts button + button { border-top: 1px solid var(--line); }
+.step { display: flex; align-items: center; gap: 4px; }
+.step button { width: 44px; height: 44px; border-radius: 10px; background: var(--line); font-size: 22px; }
+.step button:disabled { color: var(--muted); }
+#pevery { min-width: 80px; text-align: center; font-variant-numeric: tabular-nums; }
+#pnext { text-align: right; }
+.big {
+  width: 100%; min-height: 50px; margin-top: 4px; border-radius: 14px; background: var(--accent); color: var(--accent-text);
+  font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px;
+}
+.big:disabled { background: var(--line); color: var(--muted); }
+.big.done:disabled { color: var(--text); }
+.ghost {
+  position: relative; min-height: 44px; margin: 4px 0; color: var(--accent); font-size: 15px;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+/* the native date picker opens from the field itself; it lies unseen over the text button */
+.ghost input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; font-size: 16px; -webkit-appearance: none; }
+.hist { padding: 0 12px 8px; color: var(--muted); font-size: 15px; }
+.hist div { display: flex; justify-content: space-between; min-height: 32px; align-items: center; }
+#pdel { width: 100%; min-height: 44px; color: var(--danger); font-size: 15px; }
+#pdel.sure { font-weight: 600; }
+/* Lucide: outlines in the text colour */
+svg.i { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
 </style>
 </head>
 <body>
-<header><h1>Верстак</h1></header>
-<section id="audioteka">
+<section id="audioteka" role="tabpanel">
   <div class="head">
     <h2>Аудиотека</h2>
     <label class="add">+ Добавить
@@ -93,45 +248,117 @@ li.on .play { background: var(--accent); color: var(--accent-text); }
   <ul id="list"></ul>
   <p id="usage"></p>
 </section>
+<section id="flowers" role="tabpanel" hidden>
+  <div class="head">
+    <h2>Цветы</h2>
+    <button type="button" class="add" id="addplant">+ Добавить</button>
+  </div>
+  <div class="chips" id="chips"></div>
+  <div class="sortrow" id="sortrow"><span id="pcount"></span><button type="button" class="sortb" id="psort" aria-expanded="false"></button></div>
+  <div class="group" id="sortmenu" hidden>
+    <button type="button" class="r" data-sort="due">По сроку</button>
+    <button type="button" class="r" data-sort="name">По имени</button>
+    <button type="button" class="r" data-sort="place">По месту</button>
+  </div>
+  <p id="pempty" hidden></p>
+  <ul id="plants"></ul>
+</section>
+<div id="bottom">
 <footer id="player" hidden>
   <div class="row">
-    <button class="play" id="toggle" aria-label="Пауза"></button>
+    <button type="button" class="play" id="toggle" aria-label="Пауза"></button>
     <div class="body">
       <div class="name" id="now"></div>
       <div class="meta" id="time"></div>
     </div>
-    <button class="tool loop" id="loop"></button>
+    <button type="button" class="tool loop" id="loop"></button>
   </div>
   <div class="seek">
     <input type="range" id="seek" min="0" max="1000" value="0">
     <div id="band" hidden></div>
   </div>
 </footer>
-<div id="toast" role="status"></div>
+<nav id="tabs" role="tablist">
+  <button type="button" role="tab" data-tab="audioteka" aria-controls="audioteka" aria-selected="true"><svg class="i" viewBox="0 0 24 24"><path d="M2 10v3"/><path d="M6 6v11"/><path d="M10 3v18"/><path d="M14 8v7"/><path d="M18 5v13"/><path d="M22 10v3"/></svg>Аудиотека</button>
+  <button type="button" role="tab" data-tab="flowers" aria-controls="flowers" aria-selected="false"><svg class="i" viewBox="0 0 24 24"><path d="M12 5a3 3 0 1 1 3 3m-3-3a3 3 0 1 0-3 3m3-3v1M9 8a3 3 0 1 0 3 3M9 8h1m5 0a3 3 0 1 1-3 3m3-3h-1m-2 3v-1"/><circle cx="12" cy="8" r="2"/><path d="M12 10v12"/><path d="M12 22c4.2 0 7-1.667 7-5-4.2 0-7 1.667-7 5Z"/><path d="M12 22c-4.2 0-7-1.667-7-5 4.2 0 7 1.667 7 5Z"/></svg>Цветы</button>
+</nav>
+</div>
+<div id="toast" role="status"><span id="said"></span><button type="button" id="undo" hidden>Отменить</button></div>
+<div id="sheet" hidden>
+  <div class="dim" id="dim"></div>
+  <div class="panel" id="panel" role="dialog" aria-modal="true" aria-labelledby="stitle">
+    <div class="grab"></div>
+    <div class="shead"><h3 id="stitle"></h3><button type="button" class="tool" id="sclose" aria-label="Закрыть"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></div>
+    <div id="sphoto"></div>
+    <input type="file" id="photo" accept="image/*" hidden>
+    <div class="group">
+      <div class="r"><label class="k" for="pname">Название</label><form autocomplete="off" onsubmit="return false"><input id="pname" enterkeyhint="done" autocomplete="off" placeholder="Монстера"></form></div>
+      <button type="button" class="r" id="pplace" aria-haspopup="listbox" aria-expanded="false"><span class="k">Место</span><span class="pick"><span id="pplacev"></span><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span></button>
+      <div class="opts" id="pplaces" role="listbox" hidden></div>
+      <div class="r"><span class="k">Поливать каждые</span><span class="step"><button type="button" id="less" aria-label="Меньше">−</button><span id="pevery"></span><button type="button" id="more" aria-label="Больше">+</button></span></div>
+      <div class="r"><span class="k">Следующий полив</span><span id="pnext"></span></div>
+    </div>
+    <div id="old">
+      <button type="button" class="big" id="pwater"></button>
+      <label class="ghost"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg>Полил в другой день…<input type="date" id="pday" aria-label="Полил в другой день"></label>
+      <div class="group" id="phist"></div>
+      <button type="button" id="pdel"></button>
+    </div>
+    <button type="button" class="big" id="pcreate" hidden>Добавить</button>
+  </div>
+</div>
 <audio id="audio" preload="auto"></audio>
 <script>
 // release.sh writes the commit here, as in sw.js
-const VERSION = "4434b71";
+const VERSION = "9c905e6";
 const PLAY = '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';
 const PAUSE = '<svg viewBox="0 0 24 24"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>';
+// Lucide, inline: no loading from outside
+const icon = d => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
+const PENCIL = icon('<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>');
+const TRASH = icon('<path d="M10 11v6"/><path d="M14 11v6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>');
 // WhatsApp hands over .opus with an empty type now and then; the type decides whether WebKit tries
 const TYPES = {opus: "audio/ogg", ogg: "audio/ogg", oga: "audio/ogg", m4a: "audio/mp4", mp3: "audio/mpeg",
                wav: "audio/wav", aac: "audio/aac"};
 const $ = id => document.getElementById(id);
+// Every field sits in a form of its own and every button is type=button. Without a form Safari takes the page for
+// one big form, reads the words next to a field as its label and offers «AutoFill Contact» over the keyboard instead
+// of word suggestions; autocomplete="off" it ignores (dash-hub e7f61da). A submit goes nowhere.
+document.addEventListener("submit", e => e.preventDefault());
 const audio = $("audio");
 let tracks = [], current = null, url = null, sure = null, sureTimer, editing = null;
 
-// IndexedDB: one store, a track is {id, name, type, size, added, data: ArrayBuffer}
-// (an ArrayBuffer, not the File: older WebKit lost Blobs kept in IndexedDB)
+// IndexedDB: a track is {id, name, type, size, added, data: ArrayBuffer}
+// (an ArrayBuffer, not the File: older WebKit lost Blobs kept in IndexedDB).
+// Version 2 adds the plants (Цветы). An upgrade only adds what is missing: the tracks on the phone stay.
+// A base newer than this code (a release rolled back) is opened as it is, with whatever stores it has.
 const db = new Promise((ok, fail) => {
-  const r = indexedDB.open("verstak", 1);
-  r.onupgradeneeded = () => r.result.createObjectStore("tracks", {keyPath: "id"});
-  r.onsuccess = () => ok(r.result);
-  r.onerror = () => fail(r.error);
+  const open = version => {
+    const r = version ? indexedDB.open("verstak", version) : indexedDB.open("verstak");
+    r.onupgradeneeded = () => {
+      const d = r.result;
+      if (!d.objectStoreNames.contains("tracks")) d.createObjectStore("tracks", {keyPath: "id"});
+      if (!d.objectStoreNames.contains("plants")) d.createObjectStore("plants", {keyPath: "id"});
+    };
+    r.onsuccess = () => {
+      // a newer release in another window wants to upgrade: let it
+      r.result.onversionchange = () => r.result.close();
+      ok(r.result);
+    };
+    r.onerror = () => r.error?.name === "VersionError" && version ? open() : fail(r.error);
+    // an older page in another window holds the base and does not let go
+    r.onblocked = () => toast("Закройте другие окна Верстака");
+  };
+  open(2);
 });
-async function store(mode, fn) {
-  const t = (await db).transaction("tracks", mode);
-  const req = fn(t.objectStore("tracks"));
+async function store(mode, fn, name = "tracks") {
+  const d = await db;
+  if (!d.objectStoreNames.contains(name)) {
+    if (mode === "readonly") return [];
+    throw new Error(`no store ${name}`);
+  }
+  const t = d.transaction(name, mode);
+  const req = fn(t.objectStore(name));
   return new Promise((ok, fail) => {
     t.oncomplete = () => ok(req && req.result);
     t.onerror = () => fail(t.error);
@@ -141,18 +368,44 @@ const all = () => store("readonly", s => s.getAll());
 const put = tr => store("readwrite", s => s.put(tr));
 const del = id => store("readwrite", s => s.delete(id));
 
-function toast(text) {
-  const t = $("toast");
-  t.textContent = text;
+// text is a string, or two lines for a toast with a name (ux.md: a toast is at most two lines): a line is a string
+// or its parts, where {cut: name} is a name in bold that gives way, cut short with «…».
+// undo, if given, is offered as «Отменить» for 5 s.
+function toast(text, undo) {
+  const t = $("toast"), said = $("said"), two = Array.isArray(text);
+  said.classList.toggle("two", two);
+  if (!two) said.textContent = text;
+  else said.replaceChildren(...text.map(line => {
+    const d = document.createElement("div");
+    for (const part of [line].flat()) {
+      if (typeof part === "string") { d.append(part); continue; }
+      const b = document.createElement("b");
+      b.textContent = part.cut;
+      d.append(b);
+    }
+    return d;
+  }));
+  $("undo").hidden = !undo;
+  t.classList.toggle("act", !!undo);
+  toast.undo = undo;
   t.classList.add("show");
+  document.documentElement.style.setProperty("--toast", t.offsetHeight + 10 + "px");
   clearTimeout(toast.h);
-  toast.h = setTimeout(() => t.classList.remove("show"), 3500);
+  toast.h = setTimeout(() => { t.classList.remove("show"); toast.undo = null; }, undo ? 5000 : 3500);
 }
+$("undo").addEventListener("click", () => {
+  const undo = toast.undo;
+  toast.undo = null;
+  clearTimeout(toast.h);
+  $("toast").classList.remove("show");
+  undo?.();
+});
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 const ext = n => (n.match(/\.([a-z0-9]+)$/i) || [])[1]?.toLowerCase() || "";
 const mb = b => (b / 1048576).toFixed(b < 1048576 ? 2 : 1) + " МБ";
 const clock = s => isFinite(s) ? Math.floor(s / 60) + ":" + String(Math.floor(s % 60)).padStart(2, "0") : "–:––";
-const day = t => new Date(t).toLocaleDateString("ru-RU", {day: "numeric", month: "short"});
+// «25 окт.» never breaks between the number and the month
+const day = t => new Date(t).toLocaleDateString("ru-RU", {day: "numeric", month: "short"}).replace(" ", "\u00a0");
 
 function render() {
   // a rebuild would drop the rename box without a blur (WebKit), losing the edit; finish() renders after it
@@ -164,11 +417,12 @@ function render() {
     const li = document.createElement("li");
     li.dataset.id = tr.id;
     li.classList.toggle("on", current === tr.id);
+    li.classList.toggle("open", opened === tr.id);
     const playing = current === tr.id && !audio.paused;
-    li.innerHTML = `<button class="play" data-act="play" aria-label="${playing ? "Пауза" : "Играть"}">${playing ? PAUSE : PLAY}</button>
-      <div class="body" data-act="play"><div class="name"></div><div class="meta">${tr.dur ? clock(tr.dur) + " · " : ""}${mb(tr.size)} · ${day(tr.added)}</div></div>
-      <button class="tool" data-act="rename" aria-label="Переименовать">✎</button>
-      <button class="tool${sure === tr.id ? " sure" : ""}" data-act="delete" aria-label="Удалить">${sure === tr.id ? "точно?" : "✕"}</button>`;
+    li.innerHTML = `<div class="acts"><button type="button" data-act="rename">${PENCIL}Переименовать</button>
+        <button type="button" class="del" data-act="delete" aria-label="${sure === tr.id ? "Удалить: точно?" : "Удалить"}">${TRASH}${sure === tr.id ? "точно?" : "Удалить"}</button></div>
+      <div class="front"><button type="button" class="play" data-act="play" aria-label="${playing ? "Пауза" : "Играть"}">${playing ? PAUSE : PLAY}</button>
+      <div class="body" data-act="play"><div class="name"></div><div class="meta">${tr.dur ? clock(tr.dur) + " · " : ""}${mb(tr.size)} · ${day(tr.added)}</div></div></div>`;
     li.querySelector(".name").textContent = tr.name;
     list.append(li);
   }
@@ -193,24 +447,82 @@ $("pick").addEventListener("change", async e => {
     // the picker may report a type the browser does not know (audio/opus, application/octet-stream)
     // although it plays the file; then the extension decides
     const type = audio.canPlayType(f.type) ? f.type : TYPES[ext(f.name)] || f.type || "audio/mpeg";
-    if (!audio.canPlayType(type)) bad.push(f.name);
+    if (!audio.canPlayType(type)) bad.push(`«${f.name.replace(/\.[^.]+$/, "")}»`);
     await put({id: uid(), name: f.name.replace(/\.[^.]+$/, ""), type, size: f.size, added: Date.now(),
                data: await f.arrayBuffer()});
   }
   // keep the library through Safari's storage cleanup; a home-screen app gets it without asking
   navigator.storage?.persist?.();
   await load();
-  toast(bad.length ? `Добавлено, но этот браузер может не сыграть: ${bad.join(", ")}`
+  toast(bad.length ? ["Добавлено, но может не играть:", [{cut: bad.join(", ")}]]
                    : files.length === 1 ? "Трек добавлен" : `Добавлено треков: ${files.length}`);
 });
+
+// Swiping a track left uncovers «Переименовать» and «Удалить». A long swipe does nothing by itself: deleting cannot
+// be undone (ux.md Пр 7), so it stays two taps. The direction is decided after 10 px; up and down is the page's scroll.
+// One row is open at a time; a tap anywhere else, a scroll or the other tab closes it.
+let ACTS = 144, opened = null, drag = null, swiped = false;
+function shut() {
+  if (opened === null) return;
+  opened = null;
+  for (const li of $("list").children) li.classList.remove("open");
+}
+$("list").addEventListener("pointerdown", e => {
+  const front = e.target.closest(".front");
+  swiped = false;
+  if (!front || editing) return;
+  const id = front.parentNode.dataset.id;
+  // measured here, not in render(): a list rendered on the hidden tab has no width
+  ACTS = front.previousElementSibling.offsetWidth;
+  $("list").style.setProperty("--acts", ACTS + "px");
+  drag = {id, front, pid: e.pointerId, x: e.clientX, y: e.clientY, from: opened === id ? -ACTS : 0, to: null, dir: null};
+});
+$("list").addEventListener("pointermove", e => {
+  if (!drag || e.pointerId !== drag.pid) return;
+  const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+  if (!drag.dir) {
+    if (Math.hypot(dx, dy) < 10) return;
+    drag.dir = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+    if (drag.dir === "y") { drag = null; return; }
+    if (opened !== drag.id) shut();
+    drag.front.setPointerCapture(e.pointerId);
+    drag.front.style.transition = "none";
+  }
+  // past the buttons the row lags behind the finger: there is nothing further to reach
+  let x = Math.min(0, drag.from + dx);
+  if (x < -ACTS) x = -ACTS + (x + ACTS) / 4;
+  drag.to = x;
+  drag.front.style.transform = `translateX(${x}px)`;
+});
+function dragEnd(e) {
+  if (!drag || e.pointerId !== drag.pid) return;
+  const d = drag;
+  drag = null;
+  if (d.dir !== "x") return;
+  // the lift after a swipe is not a tap
+  swiped = true;
+  d.front.style.transition = d.front.style.transform = "";
+  opened = (d.to ?? d.from) < -ACTS / 2 ? d.id : null;
+  for (const li of $("list").children) li.classList.toggle("open", li.dataset.id === opened);
+}
+$("list").addEventListener("pointerup", dragEnd);
+$("list").addEventListener("pointercancel", dragEnd);
+addEventListener("pointerdown", e => {
+  // the open row's own taps are handled by its click: the buttons act, the row itself closes
+  if (opened !== null && e.target.closest?.("#list li")?.dataset.id !== opened) shut();
+}, true);
+addEventListener("scroll", shut, {passive: true});
 
 $("list").addEventListener("click", async e => {
   const act = e.target.closest("[data-act]")?.dataset.act;
   const li = e.target.closest("li");
-  if (!act || !li || li.querySelector("input")) return;
+  if (!li || li.querySelector("input")) return;
+  if (swiped) { swiped = false; return; }
+  if (li.dataset.id === opened && e.target.closest(".front")) return shut();
+  if (!act) return;
   const tr = tracks.find(t => t.id === li.dataset.id);
   if (act === "play") play(tr);
-  else if (act === "rename") rename(li, tr);
+  else if (act === "rename") { shut(); rename(li, tr); }
   else if (act === "delete") {
     // no confirm(): a second tap within 4 s, as in dash-hub
     if (sure !== tr.id) {
@@ -220,6 +532,7 @@ $("list").addEventListener("click", async e => {
       return render();
     }
     sure = null;
+    opened = null;
     clearTimeout(sureTimer);
     if (current === tr.id) stop();
     await del(tr.id);
@@ -233,7 +546,12 @@ function rename(li, tr) {
   const input = document.createElement("input");
   input.value = tr.name;
   input.enterKeyHint = "done";
-  box.replaceChildren(input);
+  input.autocomplete = "off";
+  const form = document.createElement("form");
+  form.autocomplete = "off";
+  form.onsubmit = () => false;
+  form.append(input);
+  box.replaceChildren(form);
   editing = tr.id;
   input.focus();
   input.select();
@@ -328,7 +646,7 @@ $("loop").addEventListener("click", () => {
 });
 
 function failed(tr) {
-  toast(`Не играет: «${tr.name}» (${tr.type}). Этот формат браузер не поддерживает.`);
+  toast([["Не играет: «", {cut: tr.name}, "»"], "Формат не поддерживается"]);
   stop();
   render();
 }
@@ -365,15 +683,478 @@ $("seek").addEventListener("change", () => {
 });
 $("toggle").addEventListener("click", () => audio.paused ? audio.play() : audio.pause());
 
+// The player and the tabs are one fixed block; the page and the toast end above it, whatever it holds
+new ResizeObserver(() => document.documentElement.style.setProperty("--bottom", $("bottom").offsetHeight + "px"))
+  .observe($("bottom"));
+
+// localStorage may throw (storage blocked); then everything opens at its default
+function pref(key, value) {
+  try {
+    if (value === undefined) return localStorage.getItem("verstak." + key);
+    localStorage.setItem("verstak." + key, value);
+  } catch {}
+  return null;
+}
+
+// Tabs only show and hide sections: the player, the sound, A–B and the lock screen are outside them.
+// Each tab keeps its own scroll position.
+const scrolled = {};
+function tab(name) {
+  const now = document.querySelector('#tabs [aria-selected="true"]').dataset.tab;
+  if (now !== name) scrolled[now] = scrollY;
+  shut();
+  for (const b of $("tabs").children) {
+    b.setAttribute("aria-selected", b.dataset.tab === name);
+    $(b.dataset.tab).hidden = b.dataset.tab !== name;
+  }
+  scrollTo(0, scrolled[name] || 0);
+  pref("tab", name);
+}
+$("tabs").addEventListener("click", e => { const b = e.target.closest("[data-tab]"); if (b) tab(b.dataset.tab); });
+
+// Цветы. A plant is {id, name, place, every, history, photo, photoType, added}: every is days between waterings,
+// history the times of watering (ms, newest first), photo an ArrayBuffer of a small JPEG, as with tracks.
+const PLACES = ["Гостиная", "Спальня", "Балкон", "Сад"];
+const SORTS = {due: "по сроку", name: "по имени", place: "по месту"};
+const DROP = icon('<path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"/>');
+const CHECK = icon('<path d="M20 6 9 17l-5-5"/>');
+const FLOWER = icon('<path d="M12 5a3 3 0 1 1 3 3m-3-3a3 3 0 1 0-3 3m3-3v1M9 8a3 3 0 1 0 3 3M9 8h1m5 0a3 3 0 1 1-3 3m3-3h-1m-2 3v-1"/><circle cx="12" cy="8" r="2"/><path d="M12 10v12"/><path d="M12 22c4.2 0 7-1.667 7-5-4.2 0-7 1.667-7 5Z"/><path d="M12 22c-4.2 0-7-1.667-7-5 4.2 0 7 1.667 7 5Z"/>');
+const SORT = icon('<path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/>');
+const CAMERA = icon('<path d="M13.997 4a2 2 0 0 1 1.76 1.05l.486.9A2 2 0 0 0 18.003 7H20a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1.997a2 2 0 0 0 1.759-1.048l.489-.904A2 2 0 0 1 10.004 4z"/><circle cx="12" cy="13" r="3"/>');
+const IMAGE_PLUS = icon('<path d="M16 5h6"/><path d="M19 2v6"/><path d="M21 11.5V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7.5"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/><circle cx="9" cy="9" r="2"/>');
+const savePlant = p => store("readwrite", s => s.put(p), "plants");
+let plants = [], filter = pref("filter") || "all", sort = SORTS[pref("sort")] ? pref("sort") : "due";
+let sheet = null, psure = false, psureTimer;
+
+// Days are the phone's calendar days: a watering at 23:50 and one at 00:10 are two days. Dates step by the
+// calendar, not by 24 h, so the change to summer time does not move them.
+const dayOf = t => new Date(t).setHours(0, 0, 0, 0);
+const plus = (t, n) => { const d = new Date(t); d.setDate(d.getDate() + n); return d.setHours(0, 0, 0, 0); };
+const between = (a, b) => Math.round((dayOf(b) - dayOf(a)) / 86400000);
+const iso = t => { const d = new Date(t); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+const next = p => p.history.length ? plus(p.history[0], p.every) : null;
+// days until the next watering; a plant never watered goes before every other
+const left = p => p.history.length ? between(Date.now(), next(p)) : -Infinity;
+const today = p => p.history.length > 0 && dayOf(p.history[0]) === dayOf(Date.now());
+const due = p => !today(p) && left(p) <= 0;
+const plural = (n, one, few, many) => {
+  const a = n % 10, b = n % 100;
+  return a === 1 && b !== 11 ? one : a >= 2 && a <= 4 && (b < 12 || b > 14) ? few : many;
+};
+const days = n => n + " " + plural(n, "день", "дня", "дней");
+const esc = s => s.replace(/[&<>"]/g, c => `&#${c.charCodeAt(0)};`);
+function when(p) {
+  if (!p.history.length) return "<b>ещё не поливали</b>";
+  // the check in the droplet already says «полито»; the line keeps room for the date
+  if (today(p)) return "след. " + day(next(p));
+  const n = left(p);
+  return n < 0 ? `<b>просрочено на ${days(-n)}</b>` : n === 0 ? "<b>полить сегодня</b>" : n === 1 ? "завтра" : "через " + days(n);
+}
+
+// one object URL per photo, made when the photo changes and revoked with it
+const pics = new Map();
+function pic(p) {
+  if (!p.photo) return unpic(p.id);
+  let e = pics.get(p.id);
+  if (e?.photo !== p.photo) {
+    unpic(p.id);
+    e = {photo: p.photo, url: URL.createObjectURL(new Blob([p.photo], {type: p.photoType || "image/jpeg"}))};
+    pics.set(p.id, e);
+  }
+  return e.url;
+}
+function unpic(id) {
+  if (pics.has(id)) URL.revokeObjectURL(pics.get(id).url);
+  pics.delete(id);
+  return null;
+}
+// a phone photo is 12 MP; 800 px on the long side is plenty for the circle and the card, and keeps the base small
+async function shrink(file) {
+  const src = URL.createObjectURL(file);
+  try {
+    const img = new Image();
+    img.src = src;
+    await img.decode();
+    const k = Math.min(1, 800 / Math.max(img.naturalWidth, img.naturalHeight));
+    const c = document.createElement("canvas");
+    c.width = Math.round(img.naturalWidth * k);
+    c.height = Math.round(img.naturalHeight * k);
+    c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+    const blob = await new Promise(ok => c.toBlob(ok, "image/jpeg", 0.8));
+    if (!blob) throw new Error("no JPEG");
+    return await blob.arrayBuffer();
+  } finally {
+    URL.revokeObjectURL(src);
+  }
+}
+
+function renderPlants() {
+  // a place no longer offered (Кухня) stays with its plants until changed: it goes after the offered ones
+  const places = [...new Set([...PLACES, ...plants.map(p => p.place).filter(Boolean)])]
+    .filter(pl => plants.some(p => p.place === pl));
+  // a place filter outlives its last plant only until the next look
+  if (filter !== "all" && filter !== "due" && !places.includes(filter)) filter = "all";
+  const chip = (key, label, n) => `<button type="button" class="chip${filter === key ? " on" : ""}" data-filter="${key}" aria-pressed="${filter === key}">${label}${n === undefined ? "" : ` <span class="n">${n}</span>`}</button>`;
+  $("chips").innerHTML = chip("all", "Все", plants.length) + chip("due", "Полить", plants.filter(due).length)
+    + places.map(pl => chip(pl, pl)).join("");
+  const rank = p => p.place ? places.indexOf(p.place) : places.length;
+  const by = {
+    // -Infinity - -Infinity is NaN, falsy: two plants never watered go by name too
+    due: (a, b) => left(a) - left(b) || a.name.localeCompare(b.name, "ru"),
+    name: (a, b) => a.name.localeCompare(b.name, "ru"),
+    place: (a, b) => rank(a) - rank(b) || by.due(a, b),
+  };
+  const list = plants.filter(p => filter === "all" || (filter === "due" ? due(p) : p.place === filter)).sort(by[sort]);
+  $("chips").hidden = $("sortrow").hidden = !plants.length;
+  if (!plants.length) $("sortmenu").hidden = true;
+  $("pcount").textContent = `${list.length} ${plural(list.length, "растение", "растения", "растений")}`;
+  $("psort").innerHTML = `${SORT}Сортировка: ${SORTS[sort]}`;
+  $("psort").setAttribute("aria-expanded", !$("sortmenu").hidden);
+  for (const b of $("sortmenu").children) b.innerHTML = b.textContent + (b.dataset.sort === sort ? CHECK : "");
+  $("pempty").textContent = plants.length ? "Сейчас поливать нечего."
+    : "Пока пусто. Нажмите «+ Добавить», чтобы завести первое растение.";
+  $("pempty").hidden = list.length > 0;
+  $("plants").innerHTML = list.map(p => {
+    const url = pic(p), done = today(p);
+    return `<li data-id="${p.id}" class="${due(p) ? "due" : done ? "done" : ""}">
+      <span class="pic">${url ? `<img src="${url}" alt="">` : FLOWER}</span>
+      <div class="body"><div class="name">${esc(p.name)}</div><div class="meta">${p.place ? esc(p.place) + " · " : ""}${when(p)}</div></div>
+      <button type="button" class="water" data-act="water" aria-label="Полил"${done ? ' aria-disabled="true"' : ""}>${done ? CHECK : DROP}</button></li>`;
+  }).join("");
+}
+
+async function loadPlants() {
+  plants = await store("readonly", s => s.getAll(), "plants");
+  renderPlants();
+}
+
+// «Полил» and «Полил в другой день…» write at once; the toast offers to put the history back for 5 s
+async function watered(p, before) {
+  await savePlant(p);
+  renderPlants();
+  if (sheet?.p === p) fillSheet();
+  toast([[{cut: p.name}], `полито, следующий ${day(next(p))}`], async () => {
+    if (!plants.includes(p)) return;
+    p.history = before;
+    await savePlant(p);
+    renderPlants();
+    if (sheet?.p === p) fillSheet();
+  });
+}
+function water(p) {
+  if (today(p)) return;
+  const before = p.history;
+  p.history = [Date.now(), ...before];
+  watered(p, before);
+}
+
+$("plants").addEventListener("click", e => {
+  const li = e.target.closest("li");
+  const p = li && plants.find(x => x.id === li.dataset.id);
+  if (!p) return;
+  if (e.target.closest("[data-act=water]")) water(p);
+  else openSheet(p);
+});
+$("chips").addEventListener("click", e => {
+  const b = e.target.closest("[data-filter]");
+  if (!b) return;
+  filter = b.dataset.filter;
+  pref("filter", filter);
+  renderPlants();
+});
+$("psort").addEventListener("click", () => {
+  $("sortmenu").hidden = !$("sortmenu").hidden;
+  renderPlants();
+});
+$("sortmenu").addEventListener("click", e => {
+  const b = e.target.closest("[data-sort]");
+  if (!b) return;
+  sort = b.dataset.sort;
+  pref("sort", sort);
+  $("sortmenu").hidden = true;
+  renderPlants();
+});
+$("addplant").addEventListener("click", () => {
+  // the place of the plant added last: plants come in by rooms
+  const last = plants.reduce((a, p) => !a || p.added > a.added ? p : a, null);
+  openSheet({id: uid(), name: "", place: last?.place || "", every: 7, history: [],
+             photo: null, photoType: null, added: Date.now()}, true);
+});
+// «полить сегодня» is about the day it is shown: a new day redraws the list and the card, at midnight while the app
+// is open, and on coming back (iOS holds timers in the background)
+function newDay() {
+  renderPlants();
+  if (sheet) fillSheet();
+}
+document.addEventListener("visibilitychange", () => { if (!document.hidden) newDay(); });
+(function midnight() {
+  setTimeout(() => { newDay(); midnight(); }, plus(Date.now(), 1) - Date.now() + 1000);
+})();
+
+// The card. A new plant is a draft until «Добавить»; a kept one saves every change at once.
+// iOS scrolls a page with overflow: hidden anyway; a fixed body stays where it was.
+function lock(on) {
+  const b = document.body;
+  if (on) {
+    lock.y = scrollY;
+    b.style.top = -lock.y + "px";
+    b.classList.add("locked");
+  } else {
+    b.classList.remove("locked");
+    b.style.top = "";
+    scrollTo(0, lock.y);
+  }
+}
+function openSheet(p, fresh = false) {
+  sheet = {p, fresh};
+  psure = false;
+  $("pname").value = p.name;
+  placesOpen(false);
+  lock(true);
+  $("sheet").hidden = false;
+  $("panel").scrollTop = 0;
+  fillSheet();
+  // within the tap, so iOS brings up the keyboard
+  if (fresh) $("pname").focus();
+}
+function closeSheet() {
+  if (!sheet) return;
+  if (sheet.fresh) unpic(sheet.p.id);
+  sheet = pull = null;
+  clearTimeout(psureTimer);
+  clearTimeout(pullTimer);
+  document.activeElement?.blur();
+  $("sheet").hidden = true;
+  $("sheet").classList.remove("let");
+  $("panel").style.transform = $("dim").style.opacity = "";
+  lock(false);
+}
+function fillSheet() {
+  const {p, fresh} = sheet;
+  const url = pic(p);
+  $("stitle").textContent = p.name || "Новое растение";
+  $("sphoto").innerHTML = url
+    ? `<div class="photo"><img src="${url}" alt=""><label for="photo">${CAMERA}Сменить фото</label></div><button type="button" id="unphoto">Убрать фото</button>`
+    : `<label class="nophoto" for="photo">${IMAGE_PLUS}Добавить фото</label>`;
+  $("pplacev").textContent = p.place || "Без места";
+  $("pplacev").classList.toggle("none", !p.place);
+  // the plant's own place, if no longer offered, stays chosen at the end of the list until changed
+  const offer = ["", ...PLACES, ...(p.place && !PLACES.includes(p.place) ? [p.place] : [])];
+  $("pplaces").innerHTML = offer.map(pl => `<button type="button" role="option" aria-selected="${pl === p.place}" data-place="${esc(pl)}">${pl ? esc(pl) : "Без места"}${pl === p.place ? CHECK : ""}</button>`).join("");
+  $("pevery").textContent = days(p.every);
+  $("less").disabled = p.every <= 1;
+  const n = next(p), l = left(p);
+  $("pnext").textContent = n === null ? "после первого полива"
+    : day(n) + (l < 0 ? " (просрочено)" : l === 0 ? " (сегодня)" : "");
+  $("old").hidden = fresh;
+  $("pcreate").hidden = !fresh;
+  $("pcreate").disabled = !p.name;
+  const done = today(p);
+  $("pwater").disabled = done;
+  $("pwater").classList.toggle("done", done);
+  $("pwater").innerHTML = done ? CHECK + "Полито сегодня" : DROP + "Полил сегодня";
+  $("phist").hidden = !p.history.length;
+  $("phist").innerHTML = `<div class="r"><span class="k">История</span><span class="k">${p.history.length} ${plural(p.history.length, "раз", "раза", "раз")}</span></div>
+    <div class="hist">${p.history.slice(0, 5).map(t => {
+      const ago = between(t, Date.now());
+      return `<div><span>${day(t)}</span><span>${ago ? days(ago) + " назад" : "сегодня"}</span></div>`;
+    }).join("")}</div>`;
+  $("pdel").textContent = psure ? "точно?" : "Удалить растение";
+  $("pdel").classList.toggle("sure", psure);
+}
+// a kept plant is saved and redrawn after every change; a draft only redraws its card
+async function changed() {
+  fillSheet();
+  if (sheet.fresh) return;
+  renderPlants();
+  await savePlant(sheet.p);
+}
+
+$("dim").addEventListener("click", closeSheet);
+$("sclose").addEventListener("click", closeSheet);
+
+// A swipe down closes the card too, as ✕ does (a new plant is not kept). It starts only with the sheet scrolled to
+// its top: a scrolled sheet scrolls back first. The sheet follows the finger and the dimming fades with it; let go
+// past a third of its height or flicked (over 0.5 pt/ms), it goes away, else back. Taps inside stay taps: the sheet
+// moves only once the finger has gone down more than sideways.
+let pull = null, pullTimer, pulled = 0;
+function pullTo(y) {
+  $("panel").style.transform = y ? `translateY(${y}px)` : "";
+  $("dim").style.opacity = y ? Math.max(0, 1 - y / $("panel").offsetHeight) : "";
+}
+$("panel").addEventListener("pointerdown", e => {
+  // a second finger leaves the first one's pull alone
+  if (!e.isPrimary) return;
+  pull = null;
+  if (e.button > 0 || $("panel").scrollTop > 0 || $("sheet").classList.contains("let")) return;
+  pull = {pid: e.pointerId, x: e.clientX, y: e.clientY, on: false, dy: 0, v: 0, at: e.timeStamp};
+});
+$("panel").addEventListener("pointermove", e => {
+  if (!pull || e.pointerId !== pull.pid) return;
+  const dx = e.clientX - pull.x, dy = e.clientY - pull.y;
+  if (!pull.on) {
+    // held back by its first move (below), the sheet does not scroll on its own: it follows the finger by hand,
+    // back to its top as the finger comes back
+    if (pull.held) $("panel").scrollTop = Math.max(0, -dy);
+    if (Math.hypot(dx, dy) < 8) return;
+    if (dy <= Math.abs(dx)) {
+      if (!pull.held) pull = null;
+      return;
+    }
+    pull.on = true;
+    $("panel").scrollTop = 0;
+    $("panel").setPointerCapture(e.pointerId);
+  }
+  // the speed of the last move, for a flick
+  const y = Math.max(0, dy), dt = e.timeStamp - pull.at;
+  if (dt > 0) pull.v = (y - pull.dy) / dt;
+  pull.dy = y;
+  pull.at = e.timeStamp;
+  pullTo(y);
+});
+// iOS settles a gesture by its first move: held back, it never scrolls the sheet; let go, it scrolls (or bounces) it
+// and later moves cannot stop that. So a first move down is held back for a pull; any other is the sheet's own scroll.
+$("panel").addEventListener("touchmove", e => {
+  if (!pull) return;
+  if (pull.held === undefined) {
+    const dx = e.touches[0].clientX - pull.x, dy = e.touches[0].clientY - pull.y;
+    if (!dx && !dy) return;
+    pull.held = dy > Math.abs(dx);
+    if (!pull.held) { pull = null; return; }
+  }
+  e.preventDefault();
+}, {passive: false});
+function pullEnd(e) {
+  if (!pull || e.pointerId !== pull.pid) return;
+  const {on, dy, v, at} = pull, h = $("panel").offsetHeight;
+  pull = null;
+  if (!on) return;
+  // the lift after a pull is not a tap
+  pulled = e.timeStamp;
+  // a flick lifts the finger while it still moves; held still first, it is a slow pull
+  const away = e.type === "pointerup" && (dy > h / 3 || (v > 0.5 && e.timeStamp - at < 50));
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return away ? closeSheet() : pullTo(0);
+  $("sheet").classList.add("let");
+  // a frame later, so the transition starts from where the finger left the sheet
+  requestAnimationFrame(() => pullTo(away ? h : 0));
+  pullTimer = setTimeout(() => away ? closeSheet() : $("sheet").classList.remove("let"), 250);
+}
+$("panel").addEventListener("pointerup", pullEnd);
+$("panel").addEventListener("pointercancel", pullEnd);
+$("panel").addEventListener("click", e => {
+  if (e.timeStamp - pulled < 400) { e.stopPropagation(); e.preventDefault(); }
+}, true);
+$("pname").addEventListener("input", () => {
+  const name = $("pname").value.trim();
+  // a kept plant does not take an empty name; leaving the field puts the old one back
+  if (!name && !sheet.fresh) return;
+  sheet.p.name = name;
+  $("stitle").textContent = name || "Новое растение";
+  $("pcreate").disabled = !name;
+  if (!sheet.fresh) { renderPlants(); savePlant(sheet.p); }
+});
+$("pname").addEventListener("blur", () => { if (sheet && !sheet.fresh) $("pname").value = sheet.p.name; });
+$("pname").addEventListener("keydown", e => { if (e.key === "Enter") $("pname").blur(); });
+function placesOpen(on) {
+  $("pplaces").hidden = !on;
+  $("pplace").setAttribute("aria-expanded", on);
+}
+$("pplace").addEventListener("click", () => placesOpen($("pplaces").hidden));
+$("pplaces").addEventListener("click", e => {
+  const b = e.target.closest("[data-place]");
+  if (!b) return;
+  sheet.p.place = b.dataset.place;
+  placesOpen(false);
+  changed();
+});
+// a tap anywhere else closes the list
+addEventListener("pointerdown", e => {
+  if (!$("pplaces").hidden && !e.target.closest?.("#pplace, #pplaces")) placesOpen(false);
+}, true);
+$("less").addEventListener("click", () => { sheet.p.every = Math.max(1, sheet.p.every - 1); changed(); });
+$("more").addEventListener("click", () => { sheet.p.every += 1; changed(); });
+$("photo").addEventListener("change", async e => {
+  const f = e.target.files[0];
+  e.target.value = "";
+  if (!f || !sheet) return;
+  const p = sheet.p;
+  try {
+    p.photo = await shrink(f);
+    p.photoType = "image/jpeg";
+  } catch {
+    return toast("Не удалось открыть фото");
+  }
+  if (sheet?.p === p) return changed();
+  // the card closed while the photo shrank: a dropped draft or a deleted plant keeps nothing
+  if (!plants.includes(p)) return;
+  await savePlant(p);
+  renderPlants();
+});
+$("sphoto").addEventListener("click", e => {
+  if (!e.target.closest("#unphoto")) return;
+  sheet.p.photo = sheet.p.photoType = null;
+  unpic(sheet.p.id);
+  changed();
+});
+$("pwater").addEventListener("click", () => water(sheet.p));
+// «Полил в другой день…»: iOS puts today into the empty field as soon as its picker opens and reports a change
+// for every day tapped, so the day counts only when the picker closes. Today there means nothing was picked
+// (that is «Полил сегодня»).
+function otherDay() {
+  const v = $("pday").value;
+  $("pday").value = "";
+  if (!v || !sheet || v === iso(Date.now())) return;
+  const [y, m, d] = v.split("-").map(Number);
+  // noon, clear of midnight on either side
+  const t = new Date(y, m - 1, d, 12).getTime();
+  const p = sheet.p, before = p.history;
+  if (dayOf(t) > dayOf(Date.now())) return toast("Этот день ещё не наступил");
+  if (before.some(h => dayOf(h) === dayOf(t))) return toast("Этот день уже в истории");
+  p.history = [...before, t].sort((a, b) => b - a);
+  watered(p, before);
+}
+$("pday").addEventListener("focus", () => { $("pday").value = ""; $("pday").max = iso(Date.now()); });
+$("pday").addEventListener("blur", otherDay);
+$("pday").addEventListener("change", () => { if (document.activeElement !== $("pday")) otherDay(); });
+$("pdel").addEventListener("click", async () => {
+  // no confirm(): a second tap within 4 s, as with a track
+  if (!psure) {
+    psure = true;
+    clearTimeout(psureTimer);
+    psureTimer = setTimeout(() => { psure = false; if (sheet) fillSheet(); }, 4000);
+    return fillSheet();
+  }
+  const p = sheet.p;
+  closeSheet();
+  plants = plants.filter(x => x !== p);
+  unpic(p.id);
+  await store("readwrite", s => s.delete(p.id), "plants");
+  renderPlants();
+  toast("Удалено");
+});
+$("pcreate").addEventListener("click", async () => {
+  const p = sheet.p;
+  if (!p.name) return;
+  await savePlant(p);
+  plants.push(p);
+  sheet.fresh = false;
+  closeSheet();
+  // the new plant has to be in sight: a place filter it does not match gives way to «Все»
+  if (PLACES.includes(filter) && filter !== p.place) pref("filter", filter = "all");
+  renderPlants();
+  navigator.storage?.persist?.();
+});
+
 // A new release takes over on its own (sw.js), but this page still runs the old code. It reloads into the new one
 // only when that cuts nothing off: at once when no track is open (a fresh start), or on coming back after
-// IDLE in the background until the first tap — never while a track plays or a rename is open.
+// IDLE in the background until the first tap — never while a track plays, a rename is open or a plant card is
+// (a new plant there is only a draft).
 // Without the network nothing changes.
 const IDLE = 30 * 60 * 1000;
 if ("serviceWorker" in navigator) {
   let had = !!navigator.serviceWorker.controller, stale = false, left = 0, rested = false;
   const reloadIfIdle = () => {
-    if (stale && audio.paused && !editing && (current === null || rested)) location.reload();
+    if (stale && audio.paused && !editing && !sheet && (current === null || rested)) location.reload();
   };
   addEventListener("pointerdown", () => { rested = false; }, true);
   navigator.serviceWorker.register("sw.js").then(reg => {
@@ -392,7 +1173,9 @@ if ("serviceWorker" in navigator) {
   });
 }
 loopShow();
+tab(pref("tab") === "flowers" ? "flowers" : "audioteka");
 load();
+loadPlants();
 </script>
 </body>
 </html>
