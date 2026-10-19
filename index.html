@@ -314,8 +314,10 @@ svg.i { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-widt
       <div class="group" id="pcare">
         <button type="button" class="r" aria-expanded="false"><span class="k">Пересажено</span><span class="pick"><span class="when" id="prepotted"></span><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span></button>
         <div class="opts" hidden><button type="button" data-care="repotted">Сегодня</button><label>Другой день…<input type="date" data-care="repotted"></label></div>
+        <div class="hist" id="prepotteds" hidden></div>
         <button type="button" class="r" aria-expanded="false"><span class="k">Удобрено</span><span class="pick"><span class="when" id="pfed"></span><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span></button>
         <div class="opts" hidden><button type="button" data-care="fed">Сегодня</button><label>Другой день…<input type="date" data-care="fed"></label></div>
+        <div class="hist" id="pfeds" hidden></div>
       </div>
       <button type="button" id="pdel"></button>
     </div>
@@ -325,7 +327,7 @@ svg.i { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-widt
 <audio id="audio" preload="auto"></audio>
 <script>
 // release.sh writes the commit here, as in sw.js
-const VERSION = "25acd3e";
+const VERSION = "6b673ac";
 const PLAY = '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';
 const PAUSE = '<svg viewBox="0 0 24 24"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>';
 // Lucide, inline: no loading from outside
@@ -994,6 +996,10 @@ function fillSheet() {
     const last = (p[k] || [])[0];
     $("p" + k).innerHTML = last ? `<span>${dated(last)}</span><span class="ago">${since(last)}</span>` : "не отмечено";
     $("p" + k).classList.toggle("none", !last);
+    // the earlier days, up to four, as the watering history: with the row the last five
+    const rest = (p[k] || []).slice(1, 5);
+    $("p" + k + "s").hidden = !rest.length;
+    $("p" + k + "s").innerHTML = rest.map(t => `<div><span>${dated(t)}</span><span>${since(t)}</span></div>`).join("");
   }
   $("pdel").textContent = psure ? "точно?" : "Удалить растение";
   $("pdel").classList.toggle("sure", psure);

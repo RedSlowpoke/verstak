@@ -3,7 +3,7 @@
 // A release opens from the cache, offline or not; a new release takes over as soon as it is cached,
 // and the page reloads into it when that interrupts nothing (index.html).
 // "dev" goes to the network first, so an edit shows up on the next open.
-const VERSION = "25acd3e";
+const VERSION = "6b673ac";
 const CACHE = "verstak-" + VERSION;
 const SHELL = ["./", "index.html", "manifest.json", "icons/icon-180.png", "icons/icon-192.png", "icons/icon-512.png"];
 
