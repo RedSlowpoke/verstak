@@ -211,14 +211,8 @@ body.locked:has(#toast.show) .panel { padding-bottom: calc(16px + env(safe-area-
   padding: 0 12px 0 24px; text-align: left;
 }
 .opts > * + * { border-top: 1px solid var(--line); }
-/* «Пересажено», «Удобрено»: the last day and how long ago, in one line; under the row «Сегодня», «Другой день…» */
-/* the widest («30 нояб. 2025 10 мес. назад») fits at 393 pt with the gaps cut to 4 and 8 pt; should one not, how long
-   ago gives way, never the day */
-#pcare .r { gap: 8px; }
-.when { display: flex; align-items: baseline; gap: 4px; min-width: 0; white-space: nowrap; }
-.when > :first-child { flex: none; }
-.when .ago { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--muted); font-size: 15px; }
-.when.none { color: var(--muted); }
+/* «Пересажено», «Удобрено»: how many times, as «История»; under the row «Сегодня», «Другой день…», then the days */
+.when { color: var(--muted); font-size: 15px; white-space: nowrap; }
 #pcare .opts > * { color: var(--accent); }
 .step { display: flex; align-items: center; gap: 4px; }
 .step button { width: 44px; height: 44px; border-radius: 10px; background: var(--line); font-size: 22px; }
@@ -237,8 +231,11 @@ body.locked:has(#toast.show) .panel { padding-bottom: calc(16px + env(safe-area-
 }
 /* the native date picker opens from the field itself; it lies unseen over the text button */
 :is(.ghost, .opts) input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; font-size: 16px; -webkit-appearance: none; }
-.hist { padding: 0 12px 8px; color: var(--muted); font-size: 15px; }
-.hist div { display: flex; justify-content: space-between; min-height: 32px; align-items: center; }
+/* a day in the lists slides left over «Удалить», as a track does (dayRow); 44 pt, the button's target */
+.hist { padding-bottom: 8px; color: var(--muted); font-size: 15px; }
+.hist > div { position: relative; overflow: hidden; }
+.hist .front { min-height: 44px; padding: 0 12px; justify-content: space-between; gap: 8px; }
+.hist .open .front { transform: translateX(calc(-1 * var(--acts, 72px))); }
 #pdel { width: 100%; min-height: 44px; color: var(--danger); font-size: 15px; }
 #pdel.sure { font-weight: 600; }
 /* Lucide: outlines in the text colour */
@@ -327,7 +324,7 @@ svg.i { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-widt
 <audio id="audio" preload="auto"></audio>
 <script>
 // release.sh writes the commit here, as in sw.js
-const VERSION = "6b673ac";
+const VERSION = "8a88f5e";
 const PLAY = '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';
 const PAUSE = '<svg viewBox="0 0 24 24"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>';
 // Lucide, inline: no loading from outside
@@ -743,7 +740,7 @@ const CAMERA = icon('<path d="M13.997 4a2 2 0 0 1 1.76 1.05l.486.9A2 2 0 0 0 18.
 const IMAGE_PLUS = icon('<path d="M16 5h6"/><path d="M19 2v6"/><path d="M21 11.5V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7.5"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/><circle cx="9" cy="9" r="2"/>');
 const savePlant = p => store("readwrite", s => s.put(p), "plants");
 let plants = [], filter = pref("filter") || "all", sort = SORTS[pref("sort")] ? pref("sort") : "due";
-let sheet = null, psure = false, psureTimer;
+let sheet = null, psure = false, psureTimer, hopen = null, hdrag = null, hswiped = false;
 
 // Days are the phone's calendar days: a watering at 23:50 and one at 00:10 are two days. Dates step by the
 // calendar, not by 24 h, so the change to summer time does not move them.
@@ -775,6 +772,12 @@ function since(t) {
   return y + " " + plural(y, "год", "года", "лет") + " назад";
 }
 const CARE = {repotted: "пересажено", fed: "удобрено"};
+// a day deleted from the card, in its toast: «полив 16 окт. удалён»
+const UNDAY = {history: ["полив", "удалён"], repotted: ["пересадка", "удалена"], fed: ["удобрение", "удалено"]};
+const times = n => n + " " + plural(n, "раз", "раза", "раз");
+// a day in the card's lists: the day and how long ago, «Удалить» under it (swiped left)
+const dayRow = (k, t, date, ago) => `<div data-k="${k}" data-t="${t}"><div class="acts"><button type="button" class="del">${TRASH}Удалить</button></div>
+  <div class="front"><span>${date}</span><span>${ago}</span></div></div>`;
 const esc = s => s.replace(/[&<>"]/g, c => `&#${c.charCodeAt(0)};`);
 function when(p) {
   if (!p.history.length) return "<b>ещё не поливали</b>";
@@ -986,20 +989,20 @@ function fillSheet() {
   $("pwater").disabled = done;
   $("pwater").classList.toggle("done", done);
   $("pwater").innerHTML = done ? CHECK + "Полито сегодня" : DROP + "Полил сегодня";
+  // the days are drawn anew: none of them stays slid open
+  hopen = null;
   $("phist").hidden = !p.history.length;
-  $("phist").innerHTML = `<div class="r"><span class="k">История</span><span class="k">${p.history.length} ${plural(p.history.length, "раз", "раза", "раз")}</span></div>
+  $("phist").innerHTML = `<div class="r"><span class="k">История</span><span class="k">${times(p.history.length)}</span></div>
     <div class="hist">${p.history.slice(0, 5).map(t => {
       const ago = between(t, Date.now());
-      return `<div><span>${day(t)}</span><span>${ago ? days(ago) + " назад" : "сегодня"}</span></div>`;
+      return dayRow("history", t, day(t), ago ? days(ago) + " назад" : "сегодня");
     }).join("")}</div>`;
+  // «Пересажено», «Удобрено» as the watering history: how many times in the row, the last five days under it
   for (const k in CARE) {
-    const last = (p[k] || [])[0];
-    $("p" + k).innerHTML = last ? `<span>${dated(last)}</span><span class="ago">${since(last)}</span>` : "не отмечено";
-    $("p" + k).classList.toggle("none", !last);
-    // the earlier days, up to four, as the watering history: with the row the last five
-    const rest = (p[k] || []).slice(1, 5);
-    $("p" + k + "s").hidden = !rest.length;
-    $("p" + k + "s").innerHTML = rest.map(t => `<div><span>${dated(t)}</span><span>${since(t)}</span></div>`).join("");
+    const all = p[k] || [];
+    $("p" + k).textContent = all.length ? times(all.length) : "не отмечено";
+    $("p" + k + "s").hidden = !all.length;
+    $("p" + k + "s").innerHTML = all.slice(0, 5).map(t => dayRow(k, t, dated(t), since(t))).join("");
   }
   $("pdel").textContent = psure ? "точно?" : "Удалить растение";
   $("pdel").classList.toggle("sure", psure);
@@ -1191,6 +1194,76 @@ $("pcare").addEventListener("click", e => {
   if (b) cared(b.dataset.care, Date.now());
 });
 for (const input of $("pcare").querySelectorAll("input")) otherDay(input, t => cared(input.dataset.care, t));
+// Swiping a day in «История», «Пересажено» or «Удобрено» left uncovers «Удалить», as with a track. The day goes at
+// once and the toast offers it back for 5 s (ux.md Пр 7), so no «точно?». One day open at a time; a tap anywhere else,
+// on the open day too, closes it. Sideways after 10 px; down is the card's pull, which gives way to a sideways move.
+function hshut() {
+  hopen?.classList.remove("open");
+  hopen = null;
+}
+$("old").addEventListener("pointerdown", e => {
+  const front = e.target.closest(".hist .front");
+  hswiped = false;
+  if (!front) return;
+  const row = front.parentNode, w = front.previousElementSibling.offsetWidth;
+  row.style.setProperty("--acts", w + "px");
+  hdrag = {row, front, w, pid: e.pointerId, x: e.clientX, y: e.clientY, from: hopen === row ? -w : 0, to: null, dir: null};
+});
+$("old").addEventListener("pointermove", e => {
+  const d = hdrag;
+  if (!d || e.pointerId !== d.pid) return;
+  const dx = e.clientX - d.x, dy = e.clientY - d.y;
+  if (!d.dir) {
+    if (Math.hypot(dx, dy) < 10) return;
+    d.dir = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+    if (d.dir === "y") { hdrag = null; return; }
+    if (hopen !== d.row) hshut();
+    // sideways is the day's: the card's pull, below on the panel, lets go
+    pull = null;
+    d.front.setPointerCapture(e.pointerId);
+    d.front.style.transition = "none";
+  }
+  let x = Math.min(0, d.from + dx);
+  if (x < -d.w) x = -d.w + (x + d.w) / 4;
+  d.to = x;
+  d.front.style.transform = `translateX(${x}px)`;
+});
+function hdragEnd(e) {
+  const d = hdrag;
+  if (!d || e.pointerId !== d.pid) return;
+  hdrag = null;
+  if (d.dir !== "x") return;
+  hswiped = true;
+  d.front.style.transition = d.front.style.transform = "";
+  hshut();
+  if ((d.to ?? d.from) < -d.w / 2) (hopen = d.row).classList.add("open");
+}
+$("old").addEventListener("pointerup", hdragEnd);
+$("old").addEventListener("pointercancel", hdragEnd);
+addEventListener("pointerdown", e => { if (hopen && !hopen.contains(e.target)) hshut(); }, true);
+$("panel").addEventListener("scroll", hshut, {passive: true});
+$("old").addEventListener("click", e => {
+  if (hswiped) { hswiped = false; return; }
+  const row = e.target.closest(".hist > div");
+  if (!row) return;
+  if (row === hopen && e.target.closest(".del")) unday(row.dataset.k, +row.dataset.t);
+  else hshut();
+});
+async function unday(k, t) {
+  const p = sheet.p, before = p[k] || [];
+  p[k] = before.filter(h => h !== t);
+  await savePlant(p);
+  renderPlants();
+  if (sheet?.p === p) fillSheet();
+  const [what, gone] = UNDAY[k];
+  toast([[{cut: p.name}], `${what} ${between(t, Date.now()) ? dated(t) : "сегодня"} ${gone}`], async () => {
+    if (!plants.includes(p)) return;
+    p[k] = before;
+    await savePlant(p);
+    renderPlants();
+    if (sheet?.p === p) fillSheet();
+  });
+}
 $("pdel").addEventListener("click", async () => {
   // no confirm(): a second tap within 4 s, as with a track
   if (!psure) {
